@@ -2,7 +2,7 @@
 
 A reusable workflow for planning, building and reviewing coding work in Claude Code Desktop. Give direction in a short task brief. Review a visual page afterward. The same harness works with different repositories and developers through explicit project settings and optional personal preferences.
 
-**Start with [your review guide](docs/GUIDE.md):** the five steps, what you review, what exists, and how to launch a feature, port or refactor. The [readiness assessment](docs/READINESS.md) records the audit and current limits.
+**Start with the [workflow guide](docs/GUIDE.md):** the five steps, what to review, what exists, and how to launch a feature, port or refactor. Read [design and limits](docs/DESIGN.md) for the implementation choices, upstream influences and current limits.
 
 ## What you use
 

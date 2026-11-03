@@ -1,12 +1,12 @@
-# Your review guide
+# Workflow guide
 
 **Start here.** Agent Workflow gives Claude a work process and a small helper that records whether the work passed. Claude Code Desktop supplies the agents and continuation. You choose the outcome and review the result.
 
-Use it for a supervised first block, then a longer approved queue. Local tests cover the helper. They do not establish model quality or uninterrupted overnight execution. See the [readiness assessment](READINESS.md) for the audit, fixes and remaining limits.
+Start with a supervised block, then a longer approved queue. Local tests cover the helper. They do not establish model quality or uninterrupted overnight execution. See [design and limits](DESIGN.md) for the implementation choices and remaining limits.
 
-## Tomorrow's first run
+## First run
 
-1. Open the intended repository in Claude Code Desktop, using your intended subscription account.
+1. Open the target repository in Claude Code Desktop, using the account and billing mode authorized for the work.
 2. Paste the [launch prompt](../templates/LAUNCH.md). Supply the absolute workflow path, actual checkout and desired outcome. Ask for one useful block first. Claude prepares the files and runs the helper; you do not need to hand-write JSON.
 3. Review the short task, responsibility sketch, pattern links and acceptance examples. Approve the concrete scope and actions. Routine choices inside that scope do not require repeated approval.
 4. Watch one complete build, check, independent review and final gate. Open the served review link. Try a code link, save a note and return to the page.
@@ -26,7 +26,7 @@ flowchart LR
   Q -->|Yes| B
   Q -->|No| F[Final checks and integrated review]
   F -->|Required finding| D
-  F -->|Pass| H[Your review]
+  F -->|Pass| H[Owner review]
   H --> E[5. Capture accepted corrections]
   E -. Evaluate a proposed improvement .-> A
 ```
@@ -91,7 +91,7 @@ For a broad API change, use expand, migrate, then remove the old form. If interm
 | [feedback.ts](../lib/feedback.ts) and [evals](../evals/README.md) | Selected correction capture, export, small executable exercises and summaries of human labels. |
 | [Templates](../templates/LAUNCH.md) | Launch prompt, task brief, project settings and separate native/CLI run formats. |
 | [Optional preferences](../examples/preferences/readable-code/STYLE.md) | Example comment/readability checks. Personal taste is opt-in, not shared default policy. |
-| [runner.ts](../lib/runner.ts) and [claude.ts](../lib/claude.ts) | Optional CLI execution in private clones. It invokes Claude and has different account and permission behavior. Use native mode for your Desktop subscription workflow. |
+| [runner.ts](../lib/runner.ts) and [claude.ts](../lib/claude.ts) | Optional CLI execution in private clones. It invokes Claude and has different account and permission behavior. Use native mode for a Desktop session. |
 | [Tests](../test/native.test.ts) | Regression coverage of the workflow machinery. Fixtures use scripted model responses; they do not measure model judgment. |
 
 There is no global installer, hook pack, project profile, automatic multi-model tournament or automatic rule-promotion service. Application paths, commands, service permissions and architecture rules belong in the project's run configuration. Private inputs stay outside this repo or in ignored `.local/`.
@@ -106,4 +106,4 @@ For the first real tasks, record four things: correctness, first-pass acceptance
 
 The next useful addition is a small set of your labeled examples, followed by a benchmark runner if manual comparison becomes a burden. Another reviewer, hook or skill should earn its place by reducing missed issues or your cleanup time.
 
-For exact agent commands, use [NATIVE.md](NATIVE.md). For the source comparison and audit, use [READINESS.md](READINESS.md).
+For exact agent commands, use [NATIVE.md](NATIVE.md). For implementation choices and upstream comparisons, use [design and limits](DESIGN.md).
