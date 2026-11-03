@@ -3,14 +3,14 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { fixture, goodModel } from './fixture.mjs';
-import { execute } from '../lib/runner.mjs';
-import { readRun } from '../lib/workspace.mjs';
-import { ROOT } from '../lib/config.mjs';
-import { settingsFor, promptFor } from '../lib/claude.mjs';
-import { runBounded } from '../lib/process.mjs';
-import { cleanEnv, commandFor } from '../lib/checks.mjs';
-import { checkComments, scanComments } from '../examples/preferences/readable-code/check-comments.mjs';
+import { fixture, goodModel } from './fixture.ts';
+import { execute } from '../lib/runner.ts';
+import { readRun } from '../lib/workspace.ts';
+import { ROOT } from '../lib/config.ts';
+import { settingsFor, promptFor } from '../lib/claude.ts';
+import { runBounded } from '../lib/process.ts';
+import { cleanEnv, commandFor } from '../lib/checks.ts';
+import { checkComments, scanComments } from '../examples/preferences/readable-code/check-comments.ts';
 
 test('the real CLI adapter uses separate build/review processes and structured review output', t => {
   const f = fixture(t);
@@ -32,7 +32,7 @@ if(review) {
 }
 console.log(JSON.stringify({is_error:false,total_cost_usd:0.1,result:'Finished',structured_output:review?{standards:{passed:true,findings:[]},spec:{passed:true,findings:[]},summary:'Behavior checked',notVerified:[]}:undefined}));
 `, { mode: 0o755 });
-  const command = spawnSync(process.execPath, [path.join(ROOT,'harness.mjs'),'run','--run',f.folder,'--execute'], {
+  const command = spawnSync(process.execPath, [path.join(ROOT,'harness.ts'),'run','--run',f.folder,'--execute'], {
     encoding: 'utf8', env: { ...process.env, HARNESS_CLAUDE_BIN: cli, ANTHROPIC_API_KEY: 'dummy', OPENAI_API_KEY: 'dummy', SSH_AUTH_SOCK: 'dummy' },
   });
   assert.equal(command.status, 0, command.stderr + command.stdout);
@@ -54,7 +54,7 @@ test('project configuration controls development networking and personal rules a
   assert.ok(review.sandbox.filesystem.denyWrite.includes(saved.repo));
   assert.ok(!review.permissions.allow.some(p=>p.startsWith('Edit(')));
   assert.equal(inputs.preferences.settings.checks.length,0);
-  const prompt = promptFor(inputs,f.folder,inputs.plan.blocks[0],saved,'review',{steps:[{passed:true,output:'x'.repeat(200000)}]});
+  const prompt = promptFor(inputs,f.folder,inputs.plan.blocks[0],saved,'review',{ passed: true, tree: 'fixture', errors: [], steps: [{ name: 'fixture', passed: true, output: 'x'.repeat(200000) }] });
   assert.ok(prompt.length<40000);
 });
 
@@ -64,8 +64,8 @@ test('check environment drops inherited service credentials and paths are shell 
   process.env.HARNESS_TEST_SECRET = 'dummy';
   t.after(() => { if(prior===undefined) delete process.env.HARNESS_TEST_SECRET; else process.env.HARNESS_TEST_SECRET=prior; });
   assert.equal(cleanEnv(f.repo).HARNESS_TEST_SECRET,undefined);
-  assert.ok(cleanEnv(f.repo).NPM_CONFIG_CACHE.startsWith(f.repo+path.sep));
-  assert.ok(cleanEnv(f.repo).NPM_CONFIG_USERCONFIG.startsWith(f.repo+path.sep));
+  assert.ok(cleanEnv(f.repo).NPM_CONFIG_CACHE!.startsWith(f.repo+path.sep));
+  assert.ok(cleanEnv(f.repo).NPM_CONFIG_USERCONFIG!.startsWith(f.repo+path.sep));
   assert.match(commandFor('echo {repo}', {repo:"/tmp/it's $(touch marker)",base:'x',folder:f.root}), /^echo '\/tmp\/it'"'"'s \$\(touch marker\)'$/);
 });
 
@@ -73,6 +73,7 @@ test('failed setup stops before the model', t => {
   const f = fixture(t, { project: { setup: [{ name:'missing dependencies', command:'exit 7',timeoutMinutes:1 }] } });
   f.prepare();
   const result = execute(f.folder, { invoke: () => { throw Error('Must not be called'); } });
+  assert.ok('reason' in result.results[0]);
   assert.equal(result.results[0].reason,'Dependency setup failed');
   assert.equal(result.state.spentUsd,0);
 });
@@ -83,7 +84,7 @@ test('timeouts terminate ordinary descendant processes', async t => {
   const child = `setTimeout(()=>require('node:fs').writeFileSync(${JSON.stringify(marker)},'late'),600)`;
   const parent = `require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(child)}],{stdio:'inherit'});setInterval(()=>{},1000)`;
   const result = runBounded(process.execPath,['-e',parent],{cwd:f.repo,timeoutMs:100});
-  assert.match(result.error.message,/timed out/);
+  assert.match(result.error!.message,/timed out/);
   await new Promise(resolve=>setTimeout(resolve,700));
   assert.equal(existsSync(marker),false);
 });
@@ -118,7 +119,7 @@ test('a selected personal check runs from its frozen copy', t => {
     return response;
   } });
   assert.equal(result.results[0].status,'failed');
-  const evidence = JSON.parse(readFileSync(path.join(f.folder,'results/double/checks.json')));
+  const evidence = JSON.parse(readFileSync(path.join(f.folder,'results/double/checks.json'), 'utf8'));
   assert.equal(evidence.steps[0].passed,true);
   assert.equal(evidence.steps[1].passed,false);
 });

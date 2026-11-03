@@ -1,13 +1,14 @@
+import type { EvalCases, Flags } from '../lib/types.ts';
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { git, head, changedFiles } from '../lib/git.mjs';
-import { runBounded } from '../lib/process.mjs';
-import { cleanEnv } from '../lib/checks.mjs';
-import { traps } from './cases.mjs';
-import { qualityCommand } from './quality.mjs';
+import { git, head, changedFiles } from '../lib/git.ts';
+import { runBounded } from '../lib/process.ts';
+import { cleanEnv } from '../lib/checks.ts';
+import { traps } from './cases.ts';
+import { qualityCommand } from './quality.ts';
 
-export function prepareCase(id, folder, cases = traps) {
+export function prepareCase(id: string, folder: string, cases: EvalCases = traps) {
   const task=cases[id];
   if (!task) throw new Error('Unknown eval case');
   if (existsSync(folder)) throw new Error('Use a new eval folder');
@@ -22,9 +23,9 @@ export function prepareCase(id, folder, cases = traps) {
   return {id,repo,task:path.join(folder,'TASK.md'),modelRunPerformed:false};
 }
 
-export function gradeCase(id, folder, cases=traps) {
+export function gradeCase(id: string, folder: string, cases: EvalCases = traps) {
   const task=cases[id];
-  const state=JSON.parse(readFileSync(path.join(folder,'case.json')));
+  const state=JSON.parse(readFileSync(path.join(folder,'case.json'), 'utf8')) as { id: string; base: string };
   if (!task || state.id!==id) throw new Error('Eval does not match prepared case');
   const repo=path.join(folder,'repo');
   const protectedChanged=task.protected.filter(file=>!existsSync(path.join(repo,file)) || readFileSync(path.join(repo,file),'utf8')!==task.files[file]);
@@ -49,9 +50,10 @@ export function gradeCase(id, folder, cases=traps) {
   };
 }
 
-export async function evalCommand(flags) {
+export async function evalCommand(flags: Flags) {
   if (flags.action === 'quality') return qualityCommand(flags);
-  const cases=flags.cases ? Object.values(await import(pathToFileURL(path.resolve(flags.cases)))).find(v=>v && typeof v==='object') : traps;
+  const cases: EvalCases | undefined = flags.cases ? Object.values(await import(pathToFileURL(path.resolve(flags.cases)).href) as Record<string, unknown>).find(v => v && typeof v === 'object') as EvalCases | undefined : traps;
+  if (!cases) throw new Error('Eval module must export a case map');
   const action=flags.action??'list';
   if (action==='list') return Object.entries(cases).map(([id,t])=>({id,prompt:t.prompt}));
   if (!flags.folder || !flags.case) throw new Error('Eval needs --folder and --case');

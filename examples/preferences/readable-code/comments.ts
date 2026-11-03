@@ -1,3 +1,4 @@
+type CommentStyle = 'c' | 'hash' | 'sql';
 import path from 'node:path';
 
 const QUOTES = new Set(["'", '"', '`']);
@@ -7,16 +8,16 @@ const TAIL = /[\s*/]+$/;
 const STAR_LINE = /^\s*\*(?:\s|$)/;
 const MAX_COMMENT = 2000;
 
-const clean = (text) => text.replace(LEAD, '').replace(TAIL, '');
+const clean = (text: string) => text.replace(LEAD, '').replace(TAIL, '');
 
-function isLineMark(text, i, style) {
+function isLineMark(text: string, i: number, style: CommentStyle) {
   if (!text.startsWith(LINE_MARK[style], i)) return false;
   if (style === 'hash') return i === 0 || /\s/.test(text[i - 1]);
   return style !== 'c' || text[i - 1] !== ':';
 }
 
 // Walks one line. `state` carries an open block comment or template string over to the next added line.
-function readLine(text, style, state) {
+function readLine(text: string, style: CommentStyle, state: { inBlock: boolean; inTemplate: boolean }) {
   const found = [];
   let i = 0;
   let quote = state.inTemplate ? '`' : null;
@@ -55,10 +56,10 @@ function readLine(text, style, state) {
 }
 
 // Comment text on added lines. Lines that are not next to each other start fresh, because the lines between them are unseen.
-export function addedComments(added, style) {
+export function addedComments(added: { text: string; line: number }[], style: CommentStyle) {
   const state = { inBlock: false, inTemplate: false };
   const comments = [];
-  let last = null;
+  let last: number | null = null;
   for (const { line, text } of added) {
     if (last !== null && line !== last + 1) Object.assign(state, { inBlock: false, inTemplate: false });
     last = line;
@@ -72,4 +73,4 @@ export function addedComments(added, style) {
   return comments;
 }
 
-export const commentStyleFor = (rel, styles) => styles[path.extname(rel)] ?? null;
+export const commentStyleFor = (rel: string, styles: Record<string, CommentStyle>) => styles[path.extname(rel)] ?? null;

@@ -1,12 +1,13 @@
+import type { Block, Checks, CLIBlock, CLIInputs, Failure, ModelCall, ModelResult, ModelRole, Review } from './types.ts';
 import path from 'node:path';
 import { homedir } from 'node:os';
-import { runBounded } from './process.mjs';
-import { cleanEnv, commandFor } from './checks.mjs';
+import { runBounded } from './process.ts';
+import { cleanEnv, commandFor } from './checks.ts';
 
-import { REVIEW_SCHEMA } from './quality.mjs';
-export { REVIEW_SCHEMA, reviewPassed } from './quality.mjs';
+import { REVIEW_SCHEMA } from './quality.ts';
+export { REVIEW_SCHEMA, reviewPassed } from './quality.ts';
 
-export function settingsFor(inputs, folder, saved, role) {
+export function settingsFor(inputs: CLIInputs, folder: string, saved: Pick<CLIBlock, 'repo' | 'base'>, role: ModelRole) {
   const { project } = inputs;
   const runtimeRoot = path.dirname(path.dirname(process.execPath));
   const readPaths = [saved.repo, path.join(folder,'skills'), path.join(folder,'preferences'), runtimeRoot, ...project.readOnlyPaths];
@@ -34,16 +35,16 @@ export function settingsFor(inputs, folder, saved, role) {
   };
 }
 
-function skill(inputs, name) {
+function skill(inputs: CLIInputs, name: string) {
   const source = inputs.skills[`${name}/SKILL.md`];
   if (!source) throw new Error(`Missing selected skill: ${name}`);
   return source.replace(/^---\n[\s\S]*?\n---\n/, '').trim();
 }
 
-export function promptFor(inputs, folder, block, saved, role, checks, prior = null) {
+export function promptFor(inputs: CLIInputs, folder: string, block: Block, saved: Pick<CLIBlock, 'repo' | 'base'>, role: ModelRole, checks: Checks | Failure | null, prior: Review | null = null) {
   const selected = role !== 'review' ? ['implement','tdd'] : ['code-review'];
   const prefs = inputs.preferences.settings.instructions;
-  const evidence = role === 'review' && checks && { ...checks, steps: checks.steps.map(({ output, ...step }) => ({ ...step, outputTail: output?.slice(-2000) })) };
+  const evidence = role === 'review' && checks && 'steps' in checks && { ...checks, steps: checks.steps.map(({ output, ...step }) => ({ ...step, outputTail: output?.slice(-2000) })) };
   return [
     `Role: ${role}. Follow the selected adapted skills below. They are supplied directly; no Skill tool or installed plugin is needed. Do not spawn agents.`,
     ...selected.map(name => `Selected skill: ${name}\nSource file: ${path.join(folder,'skills',name,'SKILL.md')}\n${skill(inputs,name)}`),
@@ -59,7 +60,7 @@ export function promptFor(inputs, folder, block, saved, role, checks, prior = nu
   ].join('\n\n');
 }
 
-export function runClaude({ inputs, folder, saved, role, prompt, maxUsd, timeoutMs }) {
+export function runClaude({ inputs, folder, saved, role, prompt, maxUsd, timeoutMs }: ModelCall): ModelResult {
   const settings = settingsFor(inputs, folder, saved, role);
   const tools = role === 'review' ? 'Read,Glob,Grep,Bash' : 'Read,Edit,Write,Glob,Grep,Bash';
   const args = ['--safe-mode','-p',prompt,'--model',inputs.plan.model,'--max-budget-usd',String(maxUsd),'--max-turns',String(inputs.plan.maxTurns),'--no-session-persistence','--output-format','json','--permission-mode','dontAsk','--setting-sources','','--settings',JSON.stringify(settings),'--tools',tools,'--strict-mcp-config','--mcp-config','{"mcpServers":{}}'];

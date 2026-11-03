@@ -25,7 +25,7 @@ Current Claude Code supports waiting for a subscription reset and continuing in 
 
 ## Codex
 
-Use one lead chat with the native goal and subagent tools available in that session. Ask the lead to create the goal explicitly. Confirm that the goal is active and a bounded worker can finish a real task before relying on unattended continuation. This flow does not use `harness.mjs` or require a global skill install.
+Use one lead chat with the native goal and subagent tools available in that session. Ask the lead to create the goal explicitly. Confirm that the goal is active and a bounded worker can finish a real task before relying on unattended continuation. This flow does not use `harness.ts` or require a global skill install.
 
 Give the lead the absolute paths to the approved task, checkout, orchestration skill, and saved session record. For example:
 
@@ -68,6 +68,6 @@ The lead schedules checks that share build output, local service limits, or heav
 
 ## How this differs from the CLI controller
 
-`harness.mjs` still uses bounded, sequential builder/reviewer calls in private checkouts. It disables subagents and hooks. It does not run this native goal flow or measure subscription percentage. Keep it for controlled pilots where its accounting and isolation are useful.
+`harness.ts` still uses bounded, sequential builder/reviewer calls in private checkouts. It disables subagents and hooks. It does not run this native goal flow or measure subscription percentage. Keep it for controlled pilots where its accounting and isolation are useful.
 
 The native session uses the same task, implementation, test, and review skills, with orchestrate directing the work. Host permissions and the lead enforce the work rules. The controller's sandbox, scope checks, and dollar/deadline accounting do not apply. No extra JavaScript controller, global hook, or installer is required for this flow.

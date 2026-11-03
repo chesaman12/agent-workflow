@@ -24,8 +24,8 @@ The native helper makes no model calls. Claude Desktop supplies agents, context 
 
 | Part | Purpose |
 |---|---|
-| `skills/` | Seven existing planning, design, implementation, testing, review and orchestration skills. Six are adapted from Matt Pocock, with provenance in UPSTREAM.json. |
-| `harness.mjs` | One command entry point for native run state, checks, review, notes, feedback and evals. |
+| `skills/` | Seven planning, design, implementation, testing, review and orchestration skills. Six are adapted from Matt Pocock, with provenance in UPSTREAM.json. |
+| `harness.ts` | One command entry point for native run state, checks, review, notes, feedback and evals. |
 | `lib/` | Internal state, evidence, process, review and presentation code. No separate commands to learn. |
 | `templates/` | Task brief and run/project configuration. No built-in project profile or default repo. |
 | `evals/` | Executable behavior exercises and summaries of human-labeled quality results. |
@@ -40,15 +40,17 @@ Keep private run packs, owner feedback and personal preferences outside the shar
 
 ## Native use
 
-Requirements: Git and Node 22 or newer. There are no package dependencies or global install steps. Use the Node executable available in the environment.
+Requirements: Git and Node 24.12 or newer. Node runs the TypeScript source directly. There are no runtime dependencies, build output or global install steps. Use the Node executable available in the environment.
+
+For development, run `npm ci`, then `npm run check`. This runs strict TypeScript checking and the full test suite. The only direct development dependencies are TypeScript and Node types. `npm test` runs behavior tests; `npm run typecheck` checks source and test types. Node execution alone does not check types.
 
 The lead prepares TASK.md and NATIVE.json from templates, supplies an explicit project JSON, previews inputs and records existing owner approval. Then it uses `native` actions to claim, check, review and repair blocks, and to perform the final gate. See [NATIVE.md](docs/NATIVE.md).
 
 ```sh
-node harness.mjs native --action init --task /path/to/task --project /path/to/project.json --run /path/to/run
-node harness.mjs native --action init --task /path/to/task --project /path/to/project.json --run /path/to/run --approve HASH
-node /path/to/run/runtime/harness.mjs review --run /path/to/run
-node /path/to/run/runtime/harness.mjs serve --run /path/to/run
+node harness.ts native --action init --task /path/to/task --project /path/to/project.json --run /path/to/run
+node harness.ts native --action init --task /path/to/task --project /path/to/project.json --run /path/to/run --approve HASH
+node /path/to/run/runtime/harness.ts review --run /path/to/run
+node /path/to/run/runtime/harness.ts serve --run /path/to/run
 ```
 
 The local viewer listens only on 127.0.0.1. It serves an explicit evidence allowlist and saves NOTES.md separately from the report. Static HTML and Markdown copies remain usable when a host cannot open localhost. Check actual links and note persistence in the chosen review surface. The viewer does not publish a site.
@@ -58,10 +60,10 @@ The local viewer listens only on 127.0.0.1. It serves an explicit evidence allow
 The existing CLI controller remains available for isolated controlled tasks. It takes RUN.json, snapshots approved source and selected rules, uses private clones, runs checks, invokes a separate reviewer and performs bounded repairs. Unlike native mode, `run --execute` invokes the Claude CLI and consumes its configured account allowance. It is not the default subscription-only Desktop launcher.
 
 ```sh
-node harness.mjs prepare --task /path/to/task --project /path/to/project.json --run /path/to/run
-node harness.mjs prepare --task /path/to/task --project /path/to/project.json --run /path/to/run --approve HASH
-node /path/to/run/runtime/harness.mjs run --run /path/to/run
-node /path/to/run/runtime/harness.mjs run --run /path/to/run --execute
+node harness.ts prepare --task /path/to/task --project /path/to/project.json --run /path/to/run
+node harness.ts prepare --task /path/to/task --project /path/to/project.json --run /path/to/run --approve HASH
+node /path/to/run/runtime/harness.ts run --run /path/to/run
+node /path/to/run/runtime/harness.ts run --run /path/to/run --execute
 ```
 
 Preparation and run preview make no model call. `delivery: "diff"` supports one uncommitted block. Multi-block CLI execution needs explicitly authorized local checkpoint commits and `--execute --all`. Native runs can keep a sequential multi-block queue uncommitted. Neither path pushes or merges automatically.
@@ -71,13 +73,13 @@ The CLI caps reported cost and time together across build, review and repair. Un
 ## Verification and learning
 
 ```sh
-node --test test/*.test.mjs
-node harness.mjs eval --action list
-node harness.mjs eval --action prepare --case reuse --folder /path/to/new-eval
-node harness.mjs eval --action grade --case reuse --folder /path/to/new-eval
-node harness.mjs eval --action quality --input /path/to/human-labels.json
+npm test
+node harness.ts eval --action list
+node harness.ts eval --action prepare --case reuse --folder /path/to/new-eval
+node harness.ts eval --action grade --case reuse --folder /path/to/new-eval
+node harness.ts eval --action quality --input /path/to/human-labels.json
 ```
 
-Behavior exercises run hidden assertions and submitted tests with time limits. Run candidate code in a disposable environment. Quality summaries require human labels and measured review/repair time; an empty corpus does not become a score. Keep reviewer calibration, generation quality and runtime reliability separate.
+The [evaluation guide](evals/README.md) separates behavior exercises, reviewer calibration and generation trials. Behavior exercises run hidden assertions and submitted tests with time limits. Run candidate code in a disposable environment. Quality summaries require human labels and measured review/repair time; an empty corpus does not become a score. Keep reviewer calibration, generation quality and runtime reliability separate.
 
-Feedback capture stores selected before/after code and the owner's words without changing permanent policy. Accepted examples can be exported as development cases with private labels. Do not call examples already supplied in prompts held-out tests. See the native workflow for the feedback commands and [quality evaluation format](QUALITY_EVAL.md).
+Feedback capture stores selected before/after code and the owner's words without changing permanent policy. Accepted examples can be exported as development cases with private labels. Do not call examples already supplied in prompts held-out tests. See the native workflow for the feedback commands and [evaluation guide](evals/README.md).

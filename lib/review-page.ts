@@ -1,38 +1,41 @@
+import type { Design, SourceLink } from './types.ts';
+import type { ReviewBlock, ReviewModel } from './report.ts';
+type EvidenceLink = (label: string | undefined, filename?: string, line?: number | null, thumbnail?: boolean) => string;
 import { existsSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { digest, ROOT } from './config.mjs';
-import { findings } from './quality.mjs';
+import { digest, ROOT } from './config.ts';
+import { findings } from './quality.ts';
 
-export const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+export const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!));
 const e = escapeHtml;
 
-function evidenceLinks(model) {
-  const files = {};
+function evidenceLinks(model: ReviewModel) {
+  const files: Record<string, string> = {};
   const roots = [model.folder, model.source, ...model.blocks.map(b => b.repo), path.join(ROOT, 'skills')].filter(Boolean).filter(p => existsSync(p)).map(p => realpathSync(p));
-  function link(label, filename, line = null, thumbnail = false) {
+  function link(label: string | undefined, filename?: string, line: number | null = null, thumbnail = false): string {
     if (!filename || !existsSync(filename)) return `<span class="muted">${e(label)} (not recorded)</span>`;
     const absolute = realpathSync(filename);
     if (!roots.some(root => absolute.startsWith(root + path.sep)) || /(^|\/)(\.git|\.env[^/]*|\.npmrc|id_rsa|id_ed25519)(\/|$)/.test(absolute)) return `<span class="muted">${e(label)}</span>`;
     const key = digest(absolute).slice(0, 24);
     files[key] = absolute;
-    const anchor = Number.isInteger(line) && line > 0 ? `#L${line}` : '';
+    const anchor = typeof line === 'number' && Number.isInteger(line) && line > 0 ? `#L${line}` : '';
     return `<a href="${e(pathToFileURL(absolute).href + anchor)}" data-route="evidence/${key}${anchor}">${thumbnail && /\.(png|jpe?g|webp)$/i.test(absolute) ? `<img class="screenshot" src="${e(pathToFileURL(absolute).href)}" data-route="evidence/${key}" alt="${e(label)}" loading="lazy">` : e(label)}</a>`;
   }
   return { files, link };
 }
 
-function designView(design, link, repo) {
+function designView(design: Partial<Design>, link: EvidenceLink, repo: string) {
   if (!design?.summary) return '';
   const parts = Array.isArray(design.components) ? design.components.filter(p => p && typeof p === 'object').slice(0, 6) : [];
   return `<div class="design"><p>${e(design.summary)}</p>${parts.length ? `<div class="owners">${parts.map(part => `<div><strong>${e(part.label)}</strong><span>${e(part.owns)}</span></div>`).join('')}</div>` : ''}${Array.isArray(design.patterns) && design.patterns.length ? `<p class="links">Patterns: ${design.patterns.filter(p => p && typeof p.file === 'string').slice(0, 4).map(p => link(p.label, path.resolve(repo, p.file), p.line)).join(' · ')}</p>` : ''}</div>`;
 }
 
-function blockView(block, link) {
+function blockView(block: ReviewBlock, link: EvidenceLink) {
   const issues = findings(block.review);
   const required = findings(block.openReview).filter(f => f.blocking);
   const detail = block.detail;
-  const readFirst = Array.isArray(detail.readFirst) ? detail.readFirst.filter(p => p && typeof p.file === 'string').slice(0, 5) : block.files.slice(0, 3).map(file => ({ file, label: file }));
+  const readFirst: SourceLink[] = Array.isArray(detail.readFirst) ? detail.readFirst.filter(p => p && typeof p.file === 'string').slice(0, 5) : block.files.slice(0, 3).map(file => ({ file, label: file }));
   const evidence = block.evidenceCurrent ? 'Checks match current source' : block.checks ? 'Earlier source checked; use final evidence' : 'Checks not recorded';
   return `<section class="block" id="block-${e(block.id)}"><div class="block-head"><h2>${e(block.title)}</h2><span class="tag">${e(block.status.replaceAll('_', ' '))}</span></div>
     <p>${e(detail.outcome ?? block.review?.summary ?? 'The lead will record the outcome here.')}</p>
@@ -49,7 +52,7 @@ function blockView(block, link) {
     <ul>${block.files.map(file => `<li>${link(file, path.join(block.repo, file))} · ${link('Before review', path.join(block.firstSnapshot, file))}</li>`).join('')}</ul></details></section>`;
 }
 
-export function writeReviewPage(model) {
+export function writeReviewPage(model: ReviewModel) {
   const { link, files } = evidenceLinks(model);
   const allFindings = model.blocks.flatMap(b => findings(b.openReview));
   const finalFindings = findings(model.final?.openReview ?? model.final?.review);

@@ -1,13 +1,14 @@
+import type { ModelCall } from '../lib/types.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
-import { fixture, goodModel, passedReview } from './fixture.mjs';
-import { execute, preview } from '../lib/runner.mjs';
-import { prepare, readRun, saveState, schedule, recover, withLock } from '../lib/workspace.mjs';
-import { git, head } from '../lib/git.mjs';
-import { loadDraft } from '../lib/config.mjs';
-import { report } from '../lib/report.mjs';
+import { fixture, goodModel, passedReview } from './fixture.ts';
+import { execute, preview } from '../lib/runner.ts';
+import { prepare, readRun, saveState, schedule, recover, withLock } from '../lib/workspace.ts';
+import { git, head } from '../lib/git.ts';
+import { loadDraft } from '../lib/config.ts';
+import { report } from '../lib/report.ts';
 
 test('preview makes no clone or model call; project selection is required', t => {
   const f = fixture(t);
@@ -35,7 +36,7 @@ test('one diff block runs real checks and fresh review, without a commit or sour
   writeFileSync(path.join(f.repo, 'uncommitted.txt'), 'Keep owner work');
   writeFileSync(path.join(f.repo, 'src/calc.mjs'), 'Owner changes');
   f.prepare();
-  const calls = [];
+  const calls: ModelCall[] = [];
   const result = execute(f.folder, { invoke: call => {
     calls.push(call);
     if (call.role === 'build') assert.equal(readFileSync(path.join(call.saved.repo, 'src/calc.mjs'), 'utf8'), 'export const double = n => n;\n');
@@ -69,8 +70,8 @@ for (const kind of ['no-op', 'failing-check', 'scope', 'protected', 'review-reje
       if (call.role === 'review') {
         reviews++;
         const review = passedReview();
-        if (kind === 'review-rejects') { review.spec.passed = false; review.spec.findings.push({ file: 'src/calc.mjs', line: 1, message: 'Missing required behavior' }); }
-        if (kind === 'review-incomplete') delete review.standards;
+        if (kind === 'review-rejects') { review.spec.passed = false; review.spec.findings.push({ id: 'behavior', file: 'src/calc.mjs', line: 1, category: 'correctness', blocking: true, message: 'Missing required behavior', suggestion: 'Implement the required behavior.' }); }
+        if (kind === 'review-incomplete') Reflect.deleteProperty(review, 'standards');
         if (kind === 'review-mutates') writeFileSync(path.join(call.saved.repo, 'src/calc.mjs'), 'export const double = n => 99;');
         return { ok: true, costUsd: 0.1, review };
       }
@@ -92,6 +93,7 @@ test('checks that rewrite source invalidate their own evidence', t => {
   f.prepare();
   let reviews = 0;
   const result = execute(f.folder, { invoke: call => { if (call.role === 'review') reviews++; return goodModel(call); } });
+  assert.ok('reason' in result.results[0]);
   assert.match(result.results[0].reason, /Checks changed source/);
   assert.equal(reviews, 0);
 });
@@ -110,6 +112,7 @@ test('deadline persists and an exhausted cap prevents the next model call', t =>
   f.prepare();
   const result = execute(f.folder, { invoke: call => ({ ...goodModel(call), costUsd: 2 }) });
   assert.equal(result.results[0].status, 'failed');
+  assert.ok('reason' in result.results[0]);
   assert.match(result.results[0].reason, /budget remains/);
   const deadline = result.state.deadline;
   const again = execute(f.folder, { invoke: () => { throw Error('Must not run'); } });
@@ -178,7 +181,7 @@ test('a live lock blocks another controller; interrupted blocks require explicit
     assert.throws(() => recover(f.folder, 'double', 'Inspect interrupted work'), /still alive/);
   });
   const { state } = readRun(f.folder);
-  state.blocks.double = { status: 'running', repo: path.join(f.folder, 'missing'), base: f.base };
+  state.blocks.double = { startedAt: new Date().toISOString(), status: 'running', repo: path.join(f.folder, 'missing'), base: f.base };
   state.costUnknown = true;
   saveState(f.folder, state);
   assert.throws(() => recover(f.folder, 'double', ''), /reason/);

@@ -1,13 +1,24 @@
+import type { Flags } from '../lib/types.ts';
+interface ReviewerCase {
+  id: string; acceptable: boolean; importantIssues: string[]; matchedIssues: string[]; falseBlockers: number;
+}
+interface Trial {
+  id: string; task: string; variant: string; stage: 'first-pass' | 'after-review';
+  correctnessPassed: boolean; ownerAccepted: boolean; reviewMinutes: number; repairMinutes: number;
+}
+interface QualityInput { reviewerCases: ReviewerCase[]; trials: Trial[] }
 import { readFileSync } from 'node:fs';
 
-const median = values => {
+const median = (values: number[]) => {
   if (!values.length) return null;
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 };
 
-export function summarizeQuality(data) {
+export function summarizeQuality(input: unknown) {
+  if (!input || typeof input !== 'object') throw new Error('Supply reviewerCases and trials arrays; no model score is inferred');
+  const data = input as QualityInput;
   if (!Array.isArray(data.reviewerCases) || !Array.isArray(data.trials)) throw new Error('Supply reviewerCases and trials arrays; no model score is inferred');
   const cases = data.reviewerCases;
   const caseIds = new Set();
@@ -20,7 +31,7 @@ export function summarizeQuality(data) {
   const important = cases.reduce((n, c) => n + c.importantIssues.length, 0);
   const matched = cases.reduce((n, c) => n + c.matchedIssues.length, 0);
   const controls = cases.filter(c => c.acceptable);
-  const groups = new Map();
+  const groups = new Map<string, Trial[]>();
   const trialIds = new Set();
   for (const trial of data.trials) {
     if (!trial.id || trialIds.has(trial.id) || !trial.task || !trial.variant || !['first-pass', 'after-review'].includes(trial.stage) || typeof trial.correctnessPassed !== 'boolean' || typeof trial.ownerAccepted !== 'boolean' || ![trial.reviewMinutes, trial.repairMinutes].every(n => Number.isFinite(n) && n >= 0)) throw new Error('Trials need unique ids, task, variant, stage, behavioral outcome and owner labels with measured minutes');
@@ -35,7 +46,7 @@ export function summarizeQuality(data) {
   };
 }
 
-export function qualityCommand(flags) {
+export function qualityCommand(flags: Pick<Flags, 'input'>) {
   if (!flags.input) throw new Error('Quality evaluation needs --input with measured trials and human labels');
   return summarizeQuality(JSON.parse(readFileSync(flags.input, 'utf8')));
 }

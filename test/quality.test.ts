@@ -1,14 +1,15 @@
+import type { Finding, ModelRole } from '../lib/types.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { fixture, goodModel, passedReview } from './fixture.mjs';
-import { reviewPassed, beginRepair, completionErrors, carryRequired } from '../lib/quality.mjs';
-import { execute } from '../lib/runner.mjs';
-import { summarizeQuality } from '../evals/quality.mjs';
+import { fixture, goodModel, passedReview } from './fixture.ts';
+import { reviewPassed, beginRepair, completionErrors, carryRequired } from '../lib/quality.ts';
+import { execute } from '../lib/runner.ts';
+import { summarizeQuality } from '../evals/quality.ts';
 
-export const requiredFinding = (id = 'ownership') => ({ id, file: 'src/calc.mjs', line: 1, category: 'architecture', blocking: true, message: 'Two owners encode the same rule.', suggestion: 'Put the calculation in its existing owner.' });
-export function rejectedReview(id) {
+export const requiredFinding = (id = 'ownership'): Finding => ({ id, file: 'src/calc.mjs', line: 1, category: 'architecture', blocking: true, message: 'Two owners encode the same rule.', suggestion: 'Put the calculation in its existing owner.' });
+export function rejectedReview(id = 'ownership') {
   const review = passedReview();
   review.standards = { passed: false, findings: [requiredFinding(id)] };
   return review;
@@ -55,7 +56,7 @@ test('CLI cannot erase a required finding through two empty follow-up reviews', 
     ? { ok: true, costUsd: 0.1, review: reviews++ ? passedReview() : rejectedReview() }
     : goodModel({ ...call, role: 'build' }) });
   assert.equal(result.results[0].status, 'failed');
-  assert.equal(result.state.blocks.double.openReview.standards.findings[0].id, 'ownership');
+  assert.equal(result.state.blocks.double.openReview!.standards.findings[0].id, 'ownership');
 });
 
 test('repair passes and deadlines cannot be reset by replacement findings or resume', () => {
@@ -69,7 +70,7 @@ test('repair passes and deadlines cannot be reset by replacement findings or res
 });
 
 test('completion needs command coverage, current source and a different reviewer', () => {
-  const evidence = { checks: { passed: true, tree: 'one', head: 'h', steps: [{ name: 'test', passed: true, exitCode: 0 }] }, review: passedReview(), currentTree: 'one', currentHead: 'h', expectedChecks: ['test'], builder: 'b', reviewer: 'r' };
+  const evidence = { checks: { passed: true, tree: 'one', head: 'h', errors: [], steps: [{ name: 'test', passed: true, exitCode: 0 }] }, review: passedReview(), currentTree: 'one', currentHead: 'h', expectedChecks: ['test'], builder: 'b', reviewer: 'r' };
   assert.deepEqual(completionErrors(evidence), []);
   assert.ok(completionErrors({ ...evidence, currentTree: 'two' }).some(e => e.includes('stale')));
   assert.ok(completionErrors({ ...evidence, expectedChecks: ['test', 'integration'] }).some(e => e.includes('coverage')));
@@ -79,7 +80,7 @@ test('completion needs command coverage, current source and a different reviewer
 test('CLI repairs a required maintainability finding and independently closes it', t => {
   const f = fixture(t, { plan: { maxRepairPasses: 2 } });
   f.prepare();
-  const roles = [];
+  const roles: ModelRole[] = [];
   let reviewed = 0;
   const result = execute(f.folder, { invoke: call => {
     roles.push(call.role);
@@ -107,6 +108,7 @@ test('CLI gives failed checks a bounded repair and rejects endless new findings'
     return goodModel({ ...call, role: 'build' });
   } });
   assert.equal(result.results[0].status, 'failed');
+  assert.ok('reason' in result.results[0]);
   assert.match(result.results[0].reason, /Repair pass limit/);
   assert.equal(reviews, 3);
   assert.equal(result.state.blocks.double.repairAttempts, 2);

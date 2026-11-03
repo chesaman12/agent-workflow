@@ -1,17 +1,18 @@
+import type { Block, CLIInputs, CLIState, FileBundle, NativeState, PrepareArgs } from './types.ts';
 import { constants, cpSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, lstatSync, readlinkSync, openSync, closeSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
-import { cloneAt, git, head } from './git.mjs';
-import { digest, fileBundle, json, loadDraft, runtimeId, ROOT } from './config.mjs';
+import { cloneAt, git, head } from './git.ts';
+import { digest, fileBundle, json, loadDraft, runtimeId, ROOT } from './config.ts';
 
-export function saveState(folder, state) {
+export function saveState(folder: string, state: CLIState | NativeState) {
   const temp = path.join(folder, 'state.tmp');
   writeFileSync(temp, JSON.stringify(state, null, 2) + '\n');
   renameSync(temp, path.join(folder, 'state.json'));
 }
 
-export function readRun(folder) {
-  const inputs = json(path.join(folder, 'inputs.json'));
-  const state = json(path.join(folder, 'state.json'));
+export function readRun(folder: string) {
+  const inputs = json<CLIInputs>(path.join(folder, 'inputs.json'));
+  const state = json<CLIState>(path.join(folder, 'state.json'));
   if (digest(inputs) !== state.approvalHash) throw new Error('Approved inputs changed; prepare a new run');
   if (inputs.runtimeId !== runtimeId()) throw new Error('Harness code changed; prepare a new run');
   if (readFileSync(path.join(folder, 'TASK.md'), 'utf8') !== inputs.brief) throw new Error('Approved task changed');
@@ -20,7 +21,7 @@ export function readRun(folder) {
   return { inputs, state };
 }
 
-function writeBundle(folder, files) {
+function writeBundle(folder: string, files: FileBundle) {
   mkdirSync(folder, { recursive: true });
   for (const [rel, text] of Object.entries(files)) {
     const file = path.join(folder, rel);
@@ -29,7 +30,7 @@ function writeBundle(folder, files) {
   }
 }
 
-export function copyDependencies(source, dest, paths) {
+export function copyDependencies(source: string, dest: string, paths: string[]) {
   for (const rel of paths) {
     if (/^(\.git|\.claude|\.agents)(\/|$)/.test(rel)) throw new Error(`Cannot copy tool state: ${rel}`);
     cpSync(path.join(source, rel), path.join(dest, rel), {
@@ -47,16 +48,16 @@ export function copyDependencies(source, dest, paths) {
   }
 }
 
-export function freezeRuntime(folder) {
+export function freezeRuntime(folder: string) {
   const runtime = path.join(folder, 'runtime');
   mkdirSync(runtime, { recursive: true });
-  for (const name of ['harness.mjs', 'lib', 'evals', 'skills']) cpSync(path.join(ROOT, name), path.join(runtime, name), { recursive: true });
+  for (const name of ['harness.ts', 'package.json', 'lib', 'evals', 'skills']) cpSync(path.join(ROOT, name), path.join(runtime, name), { recursive: true });
   mkdirSync(path.join(runtime, 'docs'));
   cpSync(path.join(ROOT, 'docs', 'NATIVE.md'), path.join(runtime, 'docs', 'NATIVE.md'));
-  return path.join(runtime, 'harness.mjs');
+  return path.join(runtime, 'harness.ts');
 }
 
-export function prepare({ task, project, preferences, folder, approve }) {
+export function prepare({ task, project, preferences, folder, approve }: PrepareArgs) {
   const draft = loadDraft(task, project, preferences);
   const { inputs, approvalHash } = draft;
   const source = path.resolve(inputs.project.repo);
@@ -73,16 +74,16 @@ export function prepare({ task, project, preferences, folder, approve }) {
   writeBundle(path.join(folder, 'preferences'), inputs.preferences.files);
   cloneAt(inputs.project.repo, path.join(folder, 'base'), inputs.base);
   copyDependencies(inputs.project.repo, path.join(folder, 'base'), inputs.project.copyPaths);
-  const state = { version: 1, approvalHash, base: inputs.base, acceptedRepo: path.join(folder, 'base'), acceptedHead: inputs.base, spentUsd: 0, costUnknown: false, blocks: {} };
+  const state: CLIState = { version: 1, approvalHash, base: inputs.base, acceptedRepo: path.join(folder, 'base'), acceptedHead: inputs.base, spentUsd: 0, costUnknown: false, blocks: {} };
   saveState(folder, state);
   return { writes: true, folder, approvalHash, base: inputs.base };
 }
 
-export function schedule(inputs, state) {
+export function schedule(inputs: CLIInputs, state: CLIState) {
   return inputs.plan.blocks.map(block => ({ ...block, status: state.blocks[block.id]?.status ?? (block.dependsOn.some(id => state.blocks[id]?.status !== 'accepted') ? 'blocked' : 'pending') }));
 }
 
-export function startBlock(folder, block) {
+export function startBlock(folder: string, block: Block) {
   const { inputs, state } = readRun(folder);
   const repo = path.join(folder, 'blocks', block.id);
   mkdirSync(path.dirname(repo), { recursive: true });
@@ -93,23 +94,23 @@ export function startBlock(folder, block) {
   return state.blocks[block.id];
 }
 
-export function checkpoint(repo, title) {
+export function checkpoint(repo: string, title: string) {
   git(repo, ['add', '-A']);
   git(repo, ['commit', '-qm', title]);
   return head(repo);
 }
 
-export function withLock(folder, callback) {
+export function withLock<T>(folder: string, callback: () => T): T {
   const file = path.join(folder, 'run.lock');
   let fd;
   try { fd = openSync(file, 'wx'); }
-  catch (error) { if (error.code === 'EEXIST') throw new Error('Run is locked. Use recover only after its process has stopped.'); throw error; }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new Error('Run is locked. Use recover only after its process has stopped.'); throw error; }
   writeFileSync(fd, JSON.stringify({ pid: process.pid }));
   try { return callback(); }
   finally { closeSync(fd); unlinkSync(file); }
 }
 
-export function recover(folder, id, reason) {
+export function recover(folder: string, id: string, reason?: string) {
   if (!reason?.trim()) throw new Error('Recovery needs --reason');
   unlockStoppedRun(folder);
   const { state } = readRun(folder);
@@ -119,12 +120,12 @@ export function recover(folder, id, reason) {
   return state.blocks[id];
 }
 
-export function unlockStoppedRun(folder) {
+export function unlockStoppedRun(folder: string) {
   const lock = path.join(folder, 'run.lock');
   if (existsSync(lock)) {
-    const { pid } = json(lock);
+    const { pid } = json<{ pid: number }>(lock);
     try { process.kill(pid, 0); throw new Error('Run process is still alive'); }
-    catch (error) { if (error.code !== 'ESRCH') throw error; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; }
     unlinkSync(lock);
   }
 }

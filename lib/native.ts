@@ -1,19 +1,20 @@
+import type { Block, Flags, NativeBlock, NativeInputs, NativePlan, NativeState, PrepareArgs, Review } from './types.ts';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { ROOT, digest, fileBundle, json, loadProject, loadPreferences, runtimeId } from './config.mjs';
-import { head, safePath, within, sourceManifest, manifestChanges, saveSourceSnapshot } from './git.mjs';
-import { saveState, withLock, unlockStoppedRun, freezeRuntime } from './workspace.mjs';
-import { runCommands } from './checks.mjs';
-import { beginRepair, completionErrors, validateRepairLimits, carryRequired } from './quality.mjs';
+import { ROOT, digest, fileBundle, json, loadProject, loadPreferences, runtimeId } from './config.ts';
+import { head, safePath, within, sourceManifest, manifestChanges, saveSourceSnapshot } from './git.ts';
+import { saveState, withLock, unlockStoppedRun, freezeRuntime } from './workspace.ts';
+import { runCommands } from './checks.ts';
+import { beginRepair, completionErrors, validateRepairLimits, carryRequired } from './quality.ts';
 
-const active = record => ['building', 'repairing', 'checking', 'awaiting-review'].includes(record?.status);
-const identity = repo => ({ head: head(repo), tree: digest(sourceManifest(repo)) });
-const nonempty = value => typeof value === 'string' && value.trim() && !value.includes('{{');
+const active = (record?: NativeBlock) => ['building', 'repairing', 'checking', 'awaiting-review'].includes(record?.status ?? '');
+const identity = (repo: string) => ({ head: head(repo), tree: digest(sourceManifest(repo)) });
+const nonempty = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0 && !value.includes('{{');
 
-export function readNative(folder) {
-  const inputs = json(path.join(folder, 'inputs.json'));
-  const state = json(path.join(folder, 'state.json'));
+export function readNative(folder: string) {
+  const inputs = json<NativeInputs>(path.join(folder, 'inputs.json'));
+  const state = json<NativeState>(path.join(folder, 'state.json'));
   if (inputs.mode !== 'native' || digest(inputs) !== state.approvalHash) throw new Error('Native run inputs changed');
   if (inputs.runtimeId !== runtimeId()) throw new Error('Harness changed; finish with the pinned copy or prepare a new run');
   if (readFileSync(path.join(folder, 'TASK.md'), 'utf8') !== inputs.brief) throw new Error('Approved task changed');
@@ -22,7 +23,7 @@ export function readNative(folder) {
   return { inputs, state };
 }
 
-function validatePlan(plan) {
+function validatePlan(plan: NativePlan) {
   validateRepairLimits(plan);
   if (plan.version !== 1 || !nonempty(plan.name) || !Number.isFinite(Date.parse(plan.stopAt)) || !/(Z|[+-]\d{2}:\d{2})$/.test(plan.stopAt)) throw new Error('NATIVE.json needs version 1, name and absolute stopAt');
   if (!Number.isFinite(Date.parse(plan.finalReviewAt)) || !/(Z|[+-]\d{2}:\d{2})$/.test(plan.finalReviewAt) || Date.parse(plan.finalReviewAt) >= Date.parse(plan.stopAt)) throw new Error('finalReviewAt must precede stopAt');
@@ -38,9 +39,9 @@ function validatePlan(plan) {
   }
 }
 
-export function prepareNative({ task, project, preferences, folder, approve }) {
+export function prepareNative({ task, project, preferences, folder, approve }: PrepareArgs) {
   if (!task || !project || !folder) throw new Error('Native init needs --task, --project and --run');
-  const plan = json(path.join(task, 'NATIVE.json'));
+  const plan = json<NativePlan>(path.join(task, 'NATIVE.json'));
   validatePlan(plan);
   const settings = loadProject(project);
   const brief = readFileSync(path.join(task, 'TASK.md'), 'utf8');
@@ -48,7 +49,7 @@ export function prepareNative({ task, project, preferences, folder, approve }) {
   if (path.resolve(folder) === settings.repo || path.resolve(folder).startsWith(settings.repo + path.sep)) throw new Error('Run folder must be outside the source checkout');
   const initialManifest = sourceManifest(settings.repo);
   const instructions = Object.fromEntries(settings.instructions.map(file => [file, readFileSync(path.join(settings.repo, file), 'utf8')]));
-  const inputs = { version: 1, mode: 'native', plan, project: settings, preferences: loadPreferences(preferences), brief, instructions, initialManifest, base: head(settings.repo), skills: fileBundle(path.join(ROOT, 'skills')), runtimeId: runtimeId() };
+  const inputs: NativeInputs = { version: 1, mode: 'native', plan, project: settings, preferences: loadPreferences(preferences), brief, instructions, initialManifest, base: head(settings.repo), skills: fileBundle(path.join(ROOT, 'skills')), runtimeId: runtimeId() };
   const approvalHash = digest(inputs);
   if (!approve) return { writes: false, approvalHash, source: settings.repo, base: inputs.base, plan, checks: settings.checks, modelCalls: false };
   if (approve !== approvalHash) throw new Error('Approval does not match the current task, source and harness');
@@ -67,50 +68,50 @@ export function prepareNative({ task, project, preferences, folder, approve }) {
   return { writes: true, folder, helper, approvalHash, modelCalls: false };
 }
 
-function blockFor(inputs, id) {
+function blockFor(inputs: NativeInputs, id: string): Block {
   if (id === 'final') return { id, title: 'Integrated verification', paths: inputs.plan.blocks.flatMap(b => b.paths), dependsOn: inputs.plan.blocks.map(b => b.id) };
   const block = inputs.plan.blocks.find(b => b.id === id);
   if (!block) throw new Error('Unknown block');
   return block;
 }
 
-function recordEvidence(folder, id, record, name, value) {
+function recordEvidence(folder: string, id: string, record: NativeBlock, name: string, value: unknown) {
   const dir = path.join(folder, 'results', id);
   const attempt = path.join(dir, `attempt-${record.repairAttempts ?? 0}`);
   mkdirSync(attempt, { recursive: true });
   for (const target of [path.join(dir, name), path.join(attempt, name)]) writeFileSync(target, JSON.stringify(value, null, 2) + '\n');
 }
 
-function assertWindow(state, final = false) {
+function assertWindow(state: NativeState, final = false) {
   if (state.stopped) throw new Error('Run is stopped');
   if (Date.now() >= (final ? state.deadline : state.implementationDeadline)) throw new Error(final ? 'Run deadline reached' : 'Implementation window ended; preserve work and begin final review');
 }
 
-function assertQuiet(state, id) {
+function assertQuiet(state: NativeState, id: string | null) {
   if (Object.entries(state.blocks).some(([other, record]) => other !== id && active(record))) throw new Error('Another block owns the checkout. Finish or recover it before continuing');
 }
 
-function claim(inputs, state, id, actor) {
+function claim(inputs: NativeInputs, state: NativeState, id: string, actor: string) {
   assertWindow(state);
   assertQuiet(state, id);
   if (state.blocks[id]) throw new Error('Block already claimed; use repair or recover without resetting its budget');
   const block = blockFor(inputs, id);
   if (id === 'final') throw new Error('Use final-check after the blocks finish');
   if (block.dependsOn.some(dep => state.blocks[dep]?.status !== 'review_ready')) throw new Error('Block dependencies are incomplete');
-  if (Object.values(state.blocks).some(r => ['needs-repair', 'blocked', 'interrupted'].includes(r.status))) throw new Error('Incomplete changes share this checkout; resolve them before starting independent work');
+  if (Object.values(state.blocks).some(r => ['needs-repair', 'blocked', 'interrupted'].includes(r.status ?? ''))) throw new Error('Incomplete changes share this checkout; resolve them before starting independent work');
   state.blocks[id] = { status: 'building', builder: actor, base: head(inputs.project.repo), baseline: sourceManifest(inputs.project.repo), repairAttempts: 0, startedAt: new Date().toISOString() };
   state.builders = [...new Set([...state.builders, actor])];
   state.final = null;
 }
 
-function check(inputs, state, folder, id) {
+function check(inputs: NativeInputs, state: NativeState, folder: string, id: string) {
   const final = id === 'final';
   assertWindow(state, final);
   assertQuiet(state, final ? null : id);
   const block = blockFor(inputs, id);
   if (final && block.dependsOn.some(dep => state.blocks[dep]?.status !== 'review_ready')) throw new Error('Cannot finalize incomplete blocks');
   const record = final ? (state.final ??= { baseline: inputs.initialManifest, repairAttempts: 0 }) : state.blocks[id];
-  if (!record || (!final && !['building', 'repairing', 'awaiting-review'].includes(record.status))) throw new Error('Claim or repair the block before checking');
+  if (!record || (!final && !['building', 'repairing', 'awaiting-review'].includes(record.status ?? ''))) throw new Error('Claim or repair the block before checking');
   if (Date.now() >= (record.repairDeadline ?? Infinity)) throw new Error('Repair time limit reached');
   const manifest = sourceManifest(inputs.project.repo);
   const files = manifestChanges(record.baseline, manifest);
@@ -134,12 +135,12 @@ function check(inputs, state, folder, id) {
   return { checks: record.checks, reviewInput: { tree: after.tree, review: null }, previousReview: record.openReview ?? null, builder: record.builder ?? state.builders };
 }
 
-function review(inputs, state, folder, id, actor, input) {
+function review(inputs: NativeInputs, state: NativeState, folder: string, id: string, actor: string, input: string) {
   assertWindow(state, true);
   const record = id === 'final' ? state.final : state.blocks[id];
-  if (record?.status !== 'awaiting-review') throw new Error('Current passing checks are required before review');
+  if (!record?.checks || record.status !== 'awaiting-review') throw new Error('Current passing checks are required before review');
   if (state.builders.includes(actor)) throw new Error('Review must use a separate reviewer identity from all builders');
-  const result = json(input);
+  const result = json<{ tree: string; review: Review }>(input);
   if (result.tree !== record.checks.tree) throw new Error('Reviewer used a different source tree');
   const current = identity(inputs.project.repo);
   const errors = completionErrors({ checks: record.checks, review: result.review, prior: record.openReview, currentTree: current.tree, currentHead: current.head, expectedChecks: [...inputs.project.checks, ...inputs.preferences.settings.checks].map(s => s.name), builder: record.builder, reviewer: actor });
@@ -152,30 +153,33 @@ function review(inputs, state, folder, id, actor, input) {
   return { status: record.status, errors };
 }
 
-export function nativeCommand(flags) {
+export function nativeCommand(flags: Flags & { run: string }) {
   const folder = path.resolve(flags.run);
   if (flags.action === 'init') return prepareNative({ folder, task: flags.task && path.resolve(flags.task), project: flags.project && path.resolve(flags.project), preferences: flags.preferences && path.resolve(flags.preferences), approve: flags.approve });
   if (flags.action === 'status') {
     const { inputs, state } = readNative(folder);
     const current = identity(inputs.project.repo);
-    return { state, current, reviewReady: state.final?.status === 'review_ready' && state.final.checks.tree === current.tree && state.final.checks.head === current.head };
+    return { state, current, reviewReady: state.final?.status === 'review_ready' && state.final.checks?.tree === current.tree && state.final.checks?.head === current.head };
   }
   if (flags.action === 'recover') unlockStoppedRun(folder);
   if (!nonempty(flags.actor)) throw new Error('Record --actor using the actual lead or worker identifier');
+  const actor = flags.actor;
+  const action = flags.action;
   return withLock(folder, () => {
     const { inputs, state } = readNative(folder);
-    const id = flags.action?.startsWith('final-') ? 'final' : flags.block;
+    const id = action?.startsWith('final-') ? 'final' : flags.block ?? '';
+    if (['claim', 'check', 'review', 'repair', 'recover'].includes(action ?? '') && !id) throw new Error('--block is required');
     let result;
-    if (flags.action === 'claim') claim(inputs, state, id, flags.actor);
+    if (flags.action === 'claim') claim(inputs, state, id, actor);
     else if (flags.action === 'check' || flags.action === 'final-check') result = check(inputs, state, folder, id);
-    else if (flags.action === 'review' || flags.action === 'final-review') result = review(inputs, state, folder, id, flags.actor, flags.input);
+    else if (flags.action === 'review' || flags.action === 'final-review') result = review(inputs, state, folder, id, actor, flags.input ?? '');
     else if (flags.action === 'repair') {
       assertWindow(state);
       assertQuiet(state, id);
       const record = state.blocks[id];
-      if (!record || !(['needs-repair', 'interrupted'].includes(record.status) || record.status === 'review_ready' && state.final?.status === 'needs-repair')) throw new Error('No failed check or required review repair is recorded');
-      state.blocks[id] = { ...beginRepair(record, inputs.plan, state.implementationDeadline), status: 'repairing', builder: flags.actor };
-      state.builders = [...new Set([...state.builders, flags.actor])];
+      if (!record || !(['needs-repair', 'interrupted'].includes(record.status ?? '') || record.status === 'review_ready' && state.final?.status === 'needs-repair')) throw new Error('No failed check or required review repair is recorded');
+      state.blocks[id] = { ...beginRepair(record, inputs.plan, state.implementationDeadline), status: 'repairing', builder: actor };
+      state.builders = [...new Set([...state.builders, actor])];
       if (state.final) state.final.status = 'needs-repair';
     } else if (flags.action === 'recover') {
       if (!nonempty(flags.reason)) throw new Error('Recovery needs a reason confirming the prior worker stopped and its changes were inspected');
@@ -187,7 +191,7 @@ export function nativeCommand(flags) {
       state.stopped = true;
       state.stopReason = flags.reason;
     } else throw new Error('Native action must be init, claim, check, review, repair, recover, final-check, final-review, status or stop');
-    state.events.push({ at: new Date().toISOString(), action: flags.action, block: id ?? null, actor: flags.actor, reason: flags.reason ?? null });
+    state.events.push({ at: new Date().toISOString(), action: action!, block: id || null, actor, reason: flags.reason ?? null });
     saveState(folder, state);
     return result ?? { status: id ? state.blocks[id]?.status : 'stopped', modelCalls: false };
   });

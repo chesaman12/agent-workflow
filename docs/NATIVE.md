@@ -17,8 +17,8 @@ The helper works in the explicitly selected native checkout, including existing 
 Preview, then bind the owner's existing approval to the exact inputs:
 
 ```sh
-node /path/to/harness/harness.mjs native --action init --task /path/to/task --project /path/to/project.json --run /path/to/run
-node /path/to/harness/harness.mjs native --action init --task /path/to/task --project /path/to/project.json --run /path/to/run --approve HASH
+node /path/to/harness/harness.ts native --action init --task /path/to/task --project /path/to/project.json --run /path/to/run
+node /path/to/harness/harness.ts native --action init --task /path/to/task --project /path/to/project.json --run /path/to/run --approve HASH
 ```
 
 The hash is an input-integrity check, not a substitute for authorization. If the scope and actions are already approved, the lead can execute both commands without asking again. Include the same `--preferences` on both calls when selected.
@@ -32,13 +32,13 @@ Use actual host worker IDs for `--actor`. Give the builder the task, design, sel
 One block owns this checkout at a time. Other agents can investigate read-only. For parallel writing, prepare genuinely independent runs in separate checkouts with explicit integration ownership; this helper does not merge them.
 
 ```sh
-node /path/to/harness/harness.mjs native --action claim --run /path/to/run --block first --actor BUILDER_ID
+node /path/to/harness/harness.ts native --action claim --run /path/to/run --block first --actor BUILDER_ID
 ```
 
 The builder implements the block. The lead stops writes before checks and review:
 
 ```sh
-node /path/to/harness/harness.mjs native --action check --run /path/to/run --block first --actor LEAD_ID
+node /path/to/harness/harness.ts native --action check --run /path/to/run --block first --actor LEAD_ID
 ```
 
 A failing check is not a review pass. Required checks run locally through the helper, with bounded commands and private scratch space. No changes to source or required check configuration are allowed to make a gate pass. Inspect any scope error before continuing.
@@ -59,7 +59,7 @@ After passing checks, the reviewer saves this envelope outside source. `tree` co
 ```
 
 ```sh
-node /path/to/harness/harness.mjs native --action review --run /path/to/run --block first --actor REVIEWER_ID --input /path/to/review.json
+node /path/to/harness/harness.ts native --action review --run /path/to/run --block first --actor REVIEWER_ID --input /path/to/review.json
 ```
 
 The helper rejects builder identities as reviewers. This records provenance, not OS-enforced isolation or proof of a new context. The lead must actually dispatch a fresh read-only reviewer and preserve its output.
@@ -67,7 +67,7 @@ The helper rejects builder identities as reviewers. This records provenance, not
 On a required finding or failed check:
 
 ```sh
-node /path/to/harness/harness.mjs native --action repair --run /path/to/run --block first --actor BUILDER_ID
+node /path/to/harness/harness.ts native --action repair --run /path/to/run --block first --actor BUILDER_ID
 ```
 
 Repair, check and review again. Preserve unresolved finding IDs; explicitly close resolved required findings with `{"id":"finding-id","reason":"Evidence for closure"}`. Two total repair passes and 45 minutes are defaults for the entire block, clipped to its remaining implementation window. New findings, replacement workers and resumes never reset the budget. If exhausted, preserve work and report incomplete. This shared checkout does not advance past unresolved partial changes.
@@ -79,10 +79,10 @@ A final review can require reopening an already reviewed block through `repair`,
 After all blocks pass, stop writers and run final checks and an independent integrated review. The final reviewer assesses all approved outcomes, cross-block patterns and outstanding final findings, not just the last diff. Use a reviewer identity that has not built a block.
 
 ```sh
-node /path/to/harness/harness.mjs native --action final-check --run /path/to/run --actor LEAD_ID
-node /path/to/harness/harness.mjs native --action final-review --run /path/to/run --actor FINAL_REVIEWER_ID --input /path/to/final-review.json
-node /path/to/harness/harness.mjs review --run /path/to/run
-node /path/to/harness/harness.mjs serve --run /path/to/run
+node /path/to/harness/harness.ts native --action final-check --run /path/to/run --actor LEAD_ID
+node /path/to/harness/harness.ts native --action final-review --run /path/to/run --actor FINAL_REVIEWER_ID --input /path/to/final-review.json
+node /path/to/harness/harness.ts review --run /path/to/run
+node /path/to/harness/harness.ts serve --run /path/to/run
 ```
 
 The viewer binds only to 127.0.0.1 and prints its local URL. Leave its owned process available for review; record how to restart it. Stop only that process when no longer needed. It has no model/API calls or external assets. The served view supports durable notes and code links with line anchors. Static REVIEW.html and REVIEW.md remain available when an embedded host cannot open localhost. Test actual host access before depending on it.

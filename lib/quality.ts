@@ -1,6 +1,7 @@
+import type { Checks, Finding, RepairLimits, RepairRecord, Review, ReviewAxis } from './types.ts';
 import { createHash } from 'node:crypto';
 
-const text = value => typeof value === 'string' && value.trim().length > 0;
+const text = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0;
 const findingSchema = {
   type: 'object', additionalProperties: false,
   properties: {
@@ -27,28 +28,29 @@ export const REVIEW_SCHEMA = {
   }, required: ['standards', 'spec', 'summary', 'notVerified', 'closed'],
 };
 
-export function findings(review) {
-  return ['standards', 'spec'].flatMap(axis => (Array.isArray(review?.[axis]?.findings) ? review[axis].findings : []).filter(f => f && typeof f === 'object').map(f => ({ ...f, axis })));
+export function findings(review?: Review | null): (Finding & { axis: ReviewAxis })[] {
+  return (['standards', 'spec'] as const).flatMap(axis => (Array.isArray(review?.[axis]?.findings) ? review[axis].findings : []).filter(f => f && typeof f === 'object').map(f => ({ ...f, axis })));
 }
 
-function requiredRecords(review) {
+function requiredRecords(review?: Review | null): (Finding & { axis: ReviewAxis })[] {
   const missing = Array.isArray(review?.notVerified) ? review.notVerified.filter(text) : [];
   return [...findings(review).filter(f => f.blocking), ...missing.map(message => ({
     id: `verification-${createHash('sha256').update(message.trim()).digest('hex').slice(0, 12)}`,
-    axis: 'spec', file: 'TASK.md', line: 1, category: 'verification', blocking: true,
+    axis: 'spec' as const, file: 'TASK.md', line: 1, category: 'verification' as const, blocking: true,
     message: `Required verification missing: ${message}`,
     suggestion: 'Run the required check and cite its actual saved evidence in the independent closure. Otherwise keep this finding open.',
   }))];
 }
 
-export function reviewErrors(review, prior = null) {
-  if (!review || typeof review !== 'object') return ['Review is missing'];
+export function reviewErrors(input: unknown, prior: Review | null = null) {
+  if (!input || typeof input !== 'object') return ['Review is missing'];
+  const review = input as Review;
   const errors = [];
   const ids = new Set();
   if (!text(review.summary)) errors.push('Review needs a summary');
   if (!Array.isArray(review.notVerified) || review.notVerified.some(v => !text(v))) errors.push('Invalid notVerified list');
   else if (review.notVerified.length) errors.push(...review.notVerified.map(v => `Required verification missing: ${v}`));
-  for (const axis of ['standards', 'spec']) {
+  for (const axis of ['standards', 'spec'] as const) {
     const value = review[axis];
     if (!value || typeof value.passed !== 'boolean' || !Array.isArray(value.findings)) {
       errors.push(`Incomplete ${axis} verdict`);
@@ -80,21 +82,21 @@ export function reviewErrors(review, prior = null) {
   return errors;
 }
 
-export const reviewPassed = (review, prior = null) => reviewErrors(review, prior).length === 0;
+export const reviewPassed = (review: unknown, prior: Review | null = null) => reviewErrors(review, prior).length === 0;
 
-export function carryRequired(prior, review, allowClosure = true) {
+export function carryRequired(prior: Review | null | undefined, review: Review | null | undefined, allowClosure = true): Review {
   const pending = new Map(requiredRecords(prior).map(f => [f.id, f]));
   const current = findings(review);
   for (const f of requiredRecords(review)) if (f.blocking === true && text(f.id)) pending.set(f.id, f);
-  const complete = ['standards', 'spec'].every(axis => typeof review?.[axis]?.passed === 'boolean' && Array.isArray(review[axis].findings));
-  if (allowClosure && complete && Array.isArray(review.closed)) {
+  const complete = !!review && (['standards', 'spec'] as const).every(axis => typeof review?.[axis]?.passed === 'boolean' && Array.isArray(review[axis].findings));
+  if (allowClosure && complete && review && Array.isArray(review.closed)) {
     for (const item of review.closed) if (item && text(item.id) && text(item.reason) && ![...current, ...requiredRecords(review)].some(f => f.id === item.id)) pending.delete(item.id);
   }
-  const axis = name => ({ passed: false, findings: [...pending.values()].filter(f => f.axis === name).map(({ axis, ...finding }) => finding) });
+  const axis = (name: ReviewAxis) => ({ passed: false, findings: [...pending.values()].filter(f => f.axis === name).map(({ axis, ...finding }) => finding) });
   return { standards: axis('standards'), spec: axis('spec'), summary: 'Required findings retained until explicit independent closure.', notVerified: [], closed: [] };
 }
 
-export function completionErrors({ checks, review, prior, currentTree, currentHead, expectedChecks, builder, reviewer }) {
+export function completionErrors({ checks, review, prior, currentTree, currentHead, expectedChecks, builder, reviewer }: { checks?: Checks | null; review: unknown; prior?: Review | null; currentTree: string; currentHead: string; expectedChecks?: string[]; builder?: string; reviewer?: string }) {
   const errors = reviewErrors(review, prior);
   if (builder && (!reviewer || builder === reviewer)) errors.push('A different reviewer identity is required');
   if (!checks?.passed || !Array.isArray(checks.steps) || checks.steps.some(s => !s.passed || s.exitCode !== 0)) errors.push('Required checks did not pass');
@@ -103,7 +105,7 @@ export function completionErrors({ checks, review, prior, currentTree, currentHe
   return [...new Set(errors)];
 }
 
-export function beginRepair(record, { maxRepairPasses = 2, repairMinutes = 45 }, deadline, now = Date.now()) {
+export function beginRepair<T extends RepairRecord>(record: T, { maxRepairPasses = 2, repairMinutes = 45 }: RepairLimits, deadline: number, now = Date.now()): T & Required<RepairRecord> {
   const started = record.repairStartedAt ?? now;
   const stopAt = Math.min(record.repairDeadline ?? Infinity, started + repairMinutes * 60000, deadline);
   if ((record.repairAttempts ?? 0) >= maxRepairPasses) throw new Error('Repair pass limit reached; preserve incomplete work');
@@ -111,7 +113,7 @@ export function beginRepair(record, { maxRepairPasses = 2, repairMinutes = 45 },
   return { ...record, repairStartedAt: started, repairDeadline: stopAt, repairAttempts: (record.repairAttempts ?? 0) + 1 };
 }
 
-export function validateRepairLimits(plan) {
+export function validateRepairLimits(plan: RepairLimits) {
   const passes = plan.maxRepairPasses ?? 2;
   const minutes = plan.repairMinutes ?? 45;
   if (!Number.isInteger(passes) || passes < 0 || passes > 5) throw new Error('maxRepairPasses must be an integer from 0 to 5');

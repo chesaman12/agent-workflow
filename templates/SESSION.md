@@ -1,6 +1,6 @@
 # {{Run name}}
 
-This is a human handoff for a native coding session. With the local helper, state.json is authoritative; link it instead of maintaining a second status table. Requirements remain in the linked task. This file is not a harness.mjs RUN.json input. Keep human notes in a separate file that the lead never replaces.
+This is a human handoff for a native coding session. With the local helper, state.json is authoritative; link it instead of maintaining a second status table. Requirements remain in the linked task. This file is not a harness.ts RUN.json input. Keep human notes in a separate file that the lead never replaces.
 
 - Run folder and state.json:
 - Visual review and local viewer URL:

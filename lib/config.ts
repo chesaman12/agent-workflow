@@ -1,23 +1,24 @@
+import type { CLIPlan, CLIInputs, Command, FileBundle, Preferences, Project } from './types.ts';
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { git, head, safePath } from './git.mjs';
-import { validateRepairLimits } from './quality.mjs';
+import { git, head, safePath } from './git.ts';
+import { validateRepairLimits } from './quality.ts';
 
 export const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-function ordered(value) {
+function ordered(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(ordered);
-  if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])]));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered((value as Record<string, unknown>)[key])]));
   return value;
 }
 
-export const digest = value => createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(ordered(value))).digest('hex');
-export const json = file => JSON.parse(readFileSync(file, 'utf8'));
-const filled = value => typeof value === 'string' && value.trim() && !value.includes('{{');
-const positive = value => Number.isFinite(value) && value > 0;
+export const digest = (value: unknown) => createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(ordered(value))).digest('hex');
+export const json = <T = unknown>(file: string): T => JSON.parse(readFileSync(file, 'utf8')) as T;
+const filled = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0 && !value.includes('{{');
+const positive = (value: number) => Number.isFinite(value) && value > 0;
 
-export function filesUnder(folder) {
+export function filesUnder(folder: string): string[] {
   return readdirSync(folder, { withFileTypes: true }).sort((a,b) => a.name.localeCompare(b.name)).flatMap(entry => {
     const file = path.join(folder, entry.name);
     if (entry.isSymbolicLink()) throw new Error(`Input symlinks are not allowed: ${file}`);
@@ -25,28 +26,28 @@ export function filesUnder(folder) {
   });
 }
 
-export function fileBundle(folder) {
+export function fileBundle(folder: string): FileBundle {
   return Object.fromEntries(filesUnder(folder).map(file => [path.relative(folder, file), readFileSync(file, 'utf8')]));
 }
 
 export function runtimeId() {
-  return digest({ cli: readFileSync(path.join(ROOT, 'harness.mjs'), 'utf8'), lib: fileBundle(path.join(ROOT, 'lib')) });
+  return digest({ cli: readFileSync(path.join(ROOT, 'harness.ts'), 'utf8'), lib: fileBundle(path.join(ROOT, 'lib')), package: readFileSync(path.join(ROOT, 'package.json'), 'utf8') });
 }
 
-function commands(value, label, required = false) {
+function commands(value: Command[], label: string, required = false) {
   if (!Array.isArray(value) || (required && !value.length)) throw new Error(`${label} must be a list${required ? ' with at least one command' : ''}`);
   for (const step of value) if (!filled(step.name) || !filled(step.command) || !positive(step.timeoutMinutes)) throw new Error(`${label}: each command needs name, command, and positive timeoutMinutes`);
   if (new Set(value.map(s => s.name)).size !== value.length) throw new Error(`${label}: command names must be unique`);
 }
 
-function paths(value, label) {
+function paths(value: string[], label: string) {
   if (!Array.isArray(value) || value.some(p => !safePath(p))) throw new Error(`${label} must list relative files or directories ending /`);
 }
 
-export function validatePlan(plan) {
+export function validatePlan(plan: CLIPlan) {
   validateRepairLimits(plan);
   if (plan.version !== 1 || !filled(plan.name) || !filled(plan.model)) throw new Error('RUN.json needs version 1, name and model');
-  for (const key of ['maxUsd','maxTurns','timeoutMinutes']) if (!positive(plan[key])) throw new Error(`${key} must be positive`);
+  for (const key of ['maxUsd','maxTurns','timeoutMinutes'] as const) if (!positive(plan[key])) throw new Error(`${key} must be positive`);
   if (!Number.isInteger(plan.maxTurns)) throw new Error('maxTurns must be an integer');
   if (!['diff','commits'].includes(plan.delivery)) throw new Error('delivery must be diff or commits');
   if (!Array.isArray(plan.blocks) || !plan.blocks.length) throw new Error('blocks must not be empty');
@@ -61,12 +62,12 @@ export function validatePlan(plan) {
   }
 }
 
-export function loadProject(file) {
+export function loadProject(file?: string): Project {
   if (!file) throw new Error('--project is required; there is no default repository or policy');
-  const project = json(file);
+  const project = json<Project>(file);
   if (project.version !== 1 || !filled(project.repo)) throw new Error('Project needs version 1 and repo');
   project.repo = path.resolve(path.dirname(file), project.repo);
-  for (const key of ['copyPaths','protectedPaths','instructions']) paths(project[key] ??= [], key);
+  for (const key of ['copyPaths','protectedPaths','instructions'] as const) paths(project[key] ??= [], key);
   project.setup ??= [];
   commands(project.setup, 'setup');
   commands(project.checks, 'checks', true);
@@ -82,9 +83,9 @@ export function loadProject(file) {
   return project;
 }
 
-export function loadPreferences(file) {
+export function loadPreferences(file?: string): Preferences {
   if (!file) return { settings: { checks: [] }, files: {} };
-  const settings = json(file);
+  const settings = json<Preferences['settings']>(file);
   commands(settings.checks ??= [], 'preference checks');
   if (!safePath(settings.instructions)) throw new Error('Preferences must name their instructions file');
   paths(settings.files ??= [], 'preference files');
@@ -96,9 +97,9 @@ export function loadPreferences(file) {
   return { settings, files };
 }
 
-export function loadDraft(task, projectFile, preferenceFile) {
+export function loadDraft(task?: string, projectFile?: string, preferenceFile?: string) {
   if (!task) throw new Error('--task must name a folder containing TASK.md and RUN.json');
-  const plan = json(path.join(task, 'RUN.json'));
+  const plan = json<CLIPlan>(path.join(task, 'RUN.json'));
   validatePlan(plan);
   const brief = readFileSync(path.join(task, 'TASK.md'), 'utf8');
   if (!filled(brief)) throw new Error('TASK.md must be completed');
@@ -112,6 +113,6 @@ export function loadDraft(task, projectFile, preferenceFile) {
   }
   const tracked = git(project.repo, ['ls-tree', '-r', '--name-only', base]).split('\n');
   if (tracked.some(f => /(^|\/)(\.env($|\.)|\.dev\.vars($|\.)|id_rsa$|id_ed25519$)/.test(f) && !/\.(example|sample|template)$/.test(f))) throw new Error('Source tracks credentials or local environment files');
-  const inputs = { version: 1, plan, brief, project, instructions, preferences: loadPreferences(preferenceFile), skills: fileBundle(path.join(ROOT, 'skills')), runtimeId: runtimeId(), base };
+  const inputs: CLIInputs = { version: 1, plan, brief, project, instructions, preferences: loadPreferences(preferenceFile), skills: fileBundle(path.join(ROOT, 'skills')), runtimeId: runtimeId(), base };
   return { inputs, approvalHash: digest(inputs), sourceChangesExcluded: git(project.repo, ['status','--porcelain']).trim() };
 }

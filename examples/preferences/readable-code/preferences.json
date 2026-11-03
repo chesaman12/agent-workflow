@@ -1,13 +1,14 @@
 {
   "instructions": "STYLE.md",
   "files": [
-    "check-comments.mjs",
-    "comments.mjs"
+    "package.json",
+    "check-comments.ts",
+    "comments.ts"
   ],
   "checks": [
     {
       "name": "personal-comments",
-      "command": "{node} {preferences}/check-comments.mjs --repo {repo} --base {base}",
+      "command": "{node} {preferences}/check-comments.ts --repo {repo} --base {base}",
       "timeoutMinutes": 1
     }
   ]

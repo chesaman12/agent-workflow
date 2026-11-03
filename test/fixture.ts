@@ -1,12 +1,15 @@
+import type { TestContext } from 'node:test';
+import type { CLIPlan, FileBundle, ModelCall, ModelResult, PrepareArgs, Project, Review } from '../lib/types.ts';
+export interface FixtureOptions { plan?: Partial<CLIPlan>; project?: Partial<Project>; extraFiles?: FileBundle }
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { git, head } from '../lib/git.mjs';
-import { prepare } from '../lib/workspace.mjs';
+import { git, head } from '../lib/git.ts';
+import { prepare } from '../lib/workspace.ts';
 
-export const passedReview = () => ({ standards: { passed: true, findings: [] }, spec: { passed: true, findings: [] }, summary: 'Requested behavior is covered.', notVerified: [] });
+export const passedReview = (): Review => ({ standards: { passed: true, findings: [] }, spec: { passed: true, findings: [] }, summary: 'Requested behavior is covered.', notVerified: [] });
 
-export function fixture(t, { plan = {}, project = {}, extraFiles = {} } = {}) {
+export function fixture(t: TestContext, { plan = {}, project = {}, extraFiles = {} }: FixtureOptions = {}) {
   const root = mkdtempSync(path.join(tmpdir(), 'harness-test-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const repo = path.join(root, 'source');
@@ -34,11 +37,11 @@ export function fixture(t, { plan = {}, project = {}, extraFiles = {} } = {}) {
   writeFileSync(path.join(task, 'RUN.json'), JSON.stringify({ version: 1, name: 'Double numbers', model: 'fixture', maxUsd: 2, maxTurns: 10, timeoutMinutes: 1, maxRepairPasses: 0, delivery: 'diff', blocks: [{ id: 'double', title: 'Double numbers', paths: ['src/calc.mjs'], dependsOn: [] }], ...plan }));
   const projectFile = path.join(root, 'project.json');
   writeFileSync(projectFile, JSON.stringify({ version: 1, repo, instructions: ['RULES.md'], checks: [{ name: 'behavior', command: '{node} --test test/*.test.mjs', timeoutMinutes: 1 }], protectedPaths: ['test/','.gitignore','RULES.md'], ...project }));
-  const args = { task, project: projectFile, folder };
+  const args: PrepareArgs = { task, project: projectFile, folder };
   return { root, repo, task, folder, projectFile, args, base: head(repo), prepare: () => prepare({ ...args, approve: prepare(args).approvalHash }) };
 }
 
-export function goodModel({ role, saved }) {
+export function goodModel({ role, saved }: Pick<ModelCall, 'role' | 'saved'>): ModelResult {
   if (role === 'build') writeFileSync(path.join(saved.repo, 'src/calc.mjs'), 'export const double = n => n * 2;\n');
   return { ok: true, costUsd: 0.1, review: role === 'review' ? passedReview() : null };
 }

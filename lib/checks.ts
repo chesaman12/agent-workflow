@@ -1,18 +1,19 @@
+import type { Block, CheckResult, Checks, CLIBlock, CLIInputs, Command, CommandContext } from './types.ts';
 import path from 'node:path';
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { runBounded } from './process.mjs';
-import { ROOT } from './config.mjs';
-import { treeId, scopeErrors, head } from './git.mjs';
+import { runBounded } from './process.ts';
+import { ROOT } from './config.ts';
+import { treeId, scopeErrors, head } from './git.ts';
 
-export const shellQuote = value => "'" + String(value).replaceAll("'", "'\"'\"'") + "'";
+export const shellQuote = (value: unknown) => "'" + String(value).replaceAll("'", "'\"'\"'") + "'";
 
-export function commandFor(command, { repo, base, folder }) {
-  const values = { node: process.execPath, harness: ROOT, repo, base, preferences: path.join(folder, 'preferences') };
+export function commandFor(command: string, { repo, base, folder }: CommandContext) {
+  const values: Record<string, string> = { node: process.execPath, harness: ROOT, repo, base, preferences: path.join(folder, 'preferences') };
   return command.replace(/\{(node|harness|repo|base|preferences)\}/g, (_, key) => shellQuote(values[key]));
 }
 
-export function cleanEnv(repo, extra = {}, scratchFolder = null) {
-  const env = {};
+export function cleanEnv(repo: string, extra: Record<string, string> = {}, scratchFolder: string | null = null): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
   for (const key of ['HOME','PATH','TMPDIR','LANG','USER','LOGNAME']) if (process.env[key]) env[key] = process.env[key];
   env.PATH = `${path.dirname(process.execPath)}:${env.PATH ?? '/usr/bin:/bin'}`;
   env.TMPDIR = scratchFolder ?? path.join(repo, '.harness-tmp');
@@ -28,8 +29,8 @@ export function cleanEnv(repo, extra = {}, scratchFolder = null) {
   return { ...env, ...extra };
 }
 
-export function runCommands(steps, context, { env = {}, remainingMs = Infinity } = {}) {
-  const results = [];
+export function runCommands(steps: Command[], context: CommandContext, { env = {}, remainingMs = Infinity }: { env?: Record<string, string>; remainingMs?: number } = {}): CheckResult[] {
+  const results: CheckResult[] = [];
   const end = Date.now() + remainingMs;
   for (const step of steps) {
     const budget = Math.min(step.timeoutMinutes * 60000, end - Date.now());
@@ -38,12 +39,12 @@ export function runCommands(steps, context, { env = {}, remainingMs = Infinity }
     const command = commandFor(step.command, context);
     const run = runBounded('sh', ['-c', command], { cwd: context.repo, env: cleanEnv(context.repo, env, path.join(context.folder, 'scratch', path.basename(context.repo))), timeoutMs: Math.floor(budget) });
     results.push({ name: step.name, command, startedAt, finishedAt: new Date().toISOString(), passed: run.status === 0 && !run.error, exitCode: run.status, output: `${run.stdout}\n${run.stderr}`, reason: run.error?.message ?? null });
-    if (!results.at(-1).passed) break;
+    if (!results.at(-1)!.passed) break;
   }
   return results;
 }
 
-export function checkBlock(inputs, block, saved, folder, remainingMs) {
+export function checkBlock(inputs: CLIInputs, block: Block, saved: CLIBlock, folder: string, remainingMs: number): Checks {
   const before = treeId(saved.repo, saved.base);
   const errors = scopeErrors(saved.repo, saved.base, block, inputs.project);
   if (errors.length) return { passed: false, errors, steps: [], tree: before };
