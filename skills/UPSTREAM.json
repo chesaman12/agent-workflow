@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/mattpocock/skills",
+  "revision": "4ae2317ddb22b046e26455e4f9c9b3aaaf62212d",
+  "license": "MIT",
+  "skills": ["to-spec", "to-tickets", "implement", "tdd", "code-review", "codebase-design"],
+  "adapted": true
+}

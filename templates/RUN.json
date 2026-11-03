@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "name": "{{Short task name}}",
+  "model": "sonnet",
+  "maxUsd": 5,
+  "maxTurns": 40,
+  "timeoutMinutes": 45,
+  "delivery": "diff",
+  "blocks": [
+    {
+      "id": "first",
+      "title": "{{One reviewable result}}",
+      "paths": [
+        "{{relative file or directory ending /}}"
+      ],
+      "dependsOn": []
+    }
+  ],
+  "maxRepairPasses": 2,
+  "repairMinutes": 45
+}

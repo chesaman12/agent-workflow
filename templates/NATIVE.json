@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "name": "{{Short outcome}}",
+  "stopAt": "{{Absolute ISO timestamp with timezone}}",
+  "finalReviewAt": "{{Absolute ISO timestamp before stopAt}}",
+  "maxRepairPasses": 2,
+  "repairMinutes": 45,
+  "blocks": [
+    {
+      "id": "first",
+      "title": "{{One reviewable result}}",
+      "paths": [
+        "{{relative file or directory ending /}}"
+      ],
+      "dependsOn": [],
+      "design": {
+        "summary": "{{Caller, ownership, key decision and likely change}}",
+        "components": [
+          {
+            "label": "{{Existing module}}",
+            "owns": "{{State or responsibility}}"
+          }
+        ],
+        "patterns": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "repo": "{{absolute path or path relative to this file}}",
+  "instructions": [],
+  "checks": [{
+    "name": "required-project-checks",
+    "command": "{{the repository's actual required command}}",
+    "timeoutMinutes": 20
+  }],
+  "setup": [],
+  "copyPaths": [],
+  "protectedPaths": [],
+  "commands": [],
+  "readOnlyPaths": [],
+  "network": {"allowedDomains": [], "allowLocalBinding": false},
+  "env": {}
+}
