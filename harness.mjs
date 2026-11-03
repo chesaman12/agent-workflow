@@ -10,7 +10,7 @@ import { nativeCommand } from './lib/native.mjs';
 import { startReviewServer } from './lib/review-server.mjs';
 import { feedbackCommand } from './lib/feedback.mjs';
 
-const help = `Agent harness
+const help = `Agent Workflow
 
   node harness.mjs native --action init --task TASK_FOLDER --project PROJECT_JSON --run RUN_FOLDER
   node harness.mjs native --action claim|check|review|repair|final-check|final-review|status --run RUN_FOLDER --block ID --actor WORKER_ID [--input REVIEW_JSON]

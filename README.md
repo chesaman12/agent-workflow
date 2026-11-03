@@ -1,4 +1,4 @@
-# Agent harness
+# Agent Workflow
 
 A reusable workflow for planning, building and reviewing coding work in Claude Code Desktop. Give direction in a short task brief. Review a visual page afterward. The same harness works with different repositories and developers through explicit project settings and optional personal preferences.
 
