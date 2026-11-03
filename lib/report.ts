@@ -52,9 +52,10 @@ export function reviewModel(folder: string): ReviewModel {
     const dir = path.join(folder, 'results', block.id);
     const checks = nativeRun ? nativeSaved?.checks ?? null : readIf<Checks>(path.join(dir, 'checks.json'));
     const review = nativeRun ? nativeSaved?.review ?? null : readIf<{ review?: Review }>(path.join(dir, 'review.json'))?.review ?? null;
+    const checkpointCurrent = !!cliSaved && existsSync(repo) && cliSaved.status === 'accepted' && cliSaved.head === head(repo) && checks?.head === cliSaved.base;
     const evidenceCurrent = !!checks && existsSync(repo) && (nativeRun
       ? checks.tree === current!.tree && checks.head === current!.head
-      : !!cliSaved && checks.tree === treeId(repo, cliSaved.base) && (!checks.head || checks.head === head(repo)));
+      : !!cliSaved && checks.tree === treeId(repo, cliSaved.base) && (!checks.head || checks.head === head(repo) || checkpointCurrent));
     return {
       id: block.id, title: block.title, status: saved?.status ?? ('status' in block ? String(block.status) : 'planned'), repo,
       base: saved?.base, tree: checks?.tree, evidenceCurrent, reason: saved?.reason ?? '',

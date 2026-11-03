@@ -8,7 +8,7 @@ import { execute, preview } from '../lib/runner.ts';
 import { prepare, readRun, saveState, schedule, recover, withLock } from '../lib/workspace.ts';
 import { git, head } from '../lib/git.ts';
 import { loadDraft } from '../lib/config.ts';
-import { report } from '../lib/report.ts';
+import { report, reviewModel } from '../lib/report.ts';
 
 test('preview makes no clone or model call; project selection is required', t => {
   const f = fixture(t);
@@ -199,4 +199,16 @@ test('copied dependencies are private and preserve internal relative links', t =
   writeFileSync(path.join(f.folder, 'base/node_modules/link'), 'private');
   assert.equal(readFileSync(path.join(f.repo, 'node_modules/link'), 'utf8'), 'original');
   assert.equal(readFileSync(path.join(f.folder, 'base/node_modules/pkg/value'), 'utf8'), 'private');
+});
+
+
+test('an authorized CLI checkpoint retains current evidence until source changes', t => {
+  const f = fixture(t, { plan: { delivery: 'commits' } });
+  f.prepare();
+  const result = execute(f.folder, { invoke: goodModel });
+  assert.equal(result.results[0].status, 'accepted');
+  assert.equal(reviewModel(f.folder).ready, true);
+  const repo = result.state.blocks.double.repo;
+  writeFileSync(path.join(repo, 'src/calc.mjs'), 'export const double = n => n * 3;\n');
+  assert.equal(reviewModel(f.folder).ready, false);
 });

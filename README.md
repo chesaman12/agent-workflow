@@ -2,6 +2,8 @@
 
 A reusable workflow for planning, building and reviewing coding work in Claude Code Desktop. Give direction in a short task brief. Review a visual page afterward. The same harness works with different repositories and developers through explicit project settings and optional personal preferences.
 
+**Start with [your review guide](docs/GUIDE.md):** the five steps, what you review, what exists, and how to launch a feature, port or refactor. The [readiness assessment](docs/READINESS.md) records the audit and current limits.
+
 ## What you use
 
 1. **Before coding:** review TASK.md, its small design sketch and the approved scope.
@@ -43,6 +45,8 @@ Keep private run packs, owner feedback and personal preferences outside the shar
 Requirements: Git and Node 24.12 or newer. Node runs the TypeScript source directly. There are no runtime dependencies, build output or global install steps. Use the Node executable available in the environment.
 
 For development, run `npm ci`, then `npm run check`. This runs strict TypeScript checking and the full test suite. The only direct development dependencies are TypeScript and Node types. `npm test` runs behavior tests; `npm run typecheck` checks source and test types. Node execution alone does not check types.
+
+The [CI workflow](.github/workflows/check.yml) runs the same checks on Node 24.12.0 and Node 26 for pushes and pull requests. It does not invoke models or access application services.
 
 The lead prepares TASK.md and NATIVE.json from templates, supplies an explicit project JSON, previews inputs and records existing owner approval. Then it uses `native` actions to claim, check, review and repair blocks, and to perform the final gate. See [NATIVE.md](docs/NATIVE.md).
 

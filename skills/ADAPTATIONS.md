@@ -7,7 +7,7 @@ Pinned revision: `4ae2317ddb22b046e26455e4f9c9b3aaaf62212d`. The upstream MIT li
 | Skill | Kept | Adapted |
 |---|---|---|
 | to-spec | Exploration, test boundaries, decisions, scope | One local TASK.md; actual files/types; short repairs |
-| to-tickets | Complete vertical slices, dependencies, owner review | RUN.json execution metadata; no issue publication |
+| to-tickets | Complete vertical slices, dependencies, owner review | NATIVE.json or RUN.json execution metadata; no issue publication or repeated approval |
 | implement | Spec, tests during work, review before delivery | Selected block; uncommitted changes; bounded repairs; defer missing decisions |
 | tdd | Public interfaces, behavioral tests, red/green loop, mocking | Agreed test boundaries; no repeated approval; required refactoring allowed |
 | code-review | Separate Standards and Spec, smell guidance | One fresh read-only session; uncommitted/new files; TASK.md; structured findings |

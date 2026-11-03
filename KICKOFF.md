@@ -1,5 +1,7 @@
 # Start with one useful result
 
+Read [your review guide](docs/GUIDE.md) for the workflow diagram, artifacts and current limits.
+
 1. Paste [the generic launch prompt](templates/LAUNCH.md) into Claude Code Desktop. Fill in the harness path, target repository and desired outcome. No global installation is needed.
 2. Review the short task brief, responsibility sketch, important pattern links and required checks. Approve one representative block before increasing the queue.
 3. After the run, open the served visual review. Read the outcome and key code links, try the demonstration, and leave notes. Notes and reading position are saved separately from the generated page.

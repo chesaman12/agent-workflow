@@ -22,7 +22,7 @@
 
 ## Blocks
 
-{{Start with one block. For several blocks, put each block's outcomes and tests here. RUN.json holds ids, scope, ordering, and limits only.}}
+{{Start with one block. For several blocks, put each block's outcomes and tests here. NATIVE.json holds ids, scope, ordering, design links and deadlines for Desktop. RUN.json is only for the optional CLI controller.}}
 
 ## Review focus
 

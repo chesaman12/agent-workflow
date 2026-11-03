@@ -158,6 +158,7 @@ export interface CLIBlock extends RepairRecord {
 }
 
 export interface NativeBlock extends RepairRecord {
+  checkAttempts?: number;
   status?: BlockStatus;
   baseline: SourceManifest;
   builder?: string;

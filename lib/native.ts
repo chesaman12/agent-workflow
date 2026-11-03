@@ -77,7 +77,7 @@ function blockFor(inputs: NativeInputs, id: string): Block {
 
 function recordEvidence(folder: string, id: string, record: NativeBlock, name: string, value: unknown) {
   const dir = path.join(folder, 'results', id);
-  const attempt = path.join(dir, `attempt-${record.repairAttempts ?? 0}`);
+  const attempt = path.join(dir, `attempt-${(record.checkAttempts ?? 1) - 1}`);
   mkdirSync(attempt, { recursive: true });
   for (const target of [path.join(dir, name), path.join(attempt, name)]) writeFileSync(target, JSON.stringify(value, null, 2) + '\n');
 }
@@ -106,7 +106,8 @@ function claim(inputs: NativeInputs, state: NativeState, id: string, actor: stri
 
 function check(inputs: NativeInputs, state: NativeState, folder: string, id: string) {
   const final = id === 'final';
-  assertWindow(state, final);
+  const finalRepair = state.final?.status === 'needs-repair';
+  assertWindow(state, final || finalRepair);
   assertQuiet(state, final ? null : id);
   const block = blockFor(inputs, id);
   if (final && block.dependsOn.some(dep => state.blocks[dep]?.status !== 'review_ready')) throw new Error('Cannot finalize incomplete blocks');
@@ -120,17 +121,19 @@ function check(inputs: NativeInputs, state: NativeState, folder: string, id: str
   if (scope.length) throw new Error(`Outside allowed scope: ${scope.join(', ')}`);
   if (!final && head(inputs.project.repo) !== record.base) throw new Error('HEAD changed during the block; reconcile before checking');
   const before = identity(inputs.project.repo);
+  record.checkAttempts = (record.checkAttempts ?? 0) + 1;
   record.status = 'checking';
   saveState(folder, state);
-  const remainingMs = Math.min(state.deadline, record.repairDeadline ?? Infinity) - Date.now();
+  const checkDeadline = final || finalRepair ? state.deadline : state.implementationDeadline;
+  const remainingMs = Math.min(checkDeadline, record.repairDeadline ?? Infinity) - Date.now();
   const requiredChecks = [...inputs.project.checks, ...inputs.preferences.settings.checks];
   const steps = runCommands(requiredChecks, { repo: inputs.project.repo, base: inputs.base, folder }, { env: inputs.project.env, remainingMs });
   const after = identity(inputs.project.repo);
   const errors = before.tree === after.tree && before.head === after.head ? [] : ['Checks changed source; evidence is invalid'];
-  record.files = files;
+  record.files = [...new Set([...(record.files ?? []), ...files])].sort();
   record.checks = { ...after, steps, errors, checkedAt: new Date().toISOString(), environment: { node: process.version, platform: process.platform }, passed: !errors.length && steps.length === requiredChecks.length && steps.every(s => s.passed) };
   recordEvidence(folder, id, record, 'checks.json', record.checks);
-  saveSourceSnapshot(inputs.project.repo, files, path.join(folder, 'results', id, `attempt-${record.repairAttempts ?? 0}`, 'snapshot'));
+  saveSourceSnapshot(inputs.project.repo, record.files, path.join(folder, 'results', id, `attempt-${record.checkAttempts - 1}`, 'snapshot'));
   record.status = record.checks.passed ? 'awaiting-review' : 'needs-repair';
   return { checks: record.checks, reviewInput: { tree: after.tree, review: null }, previousReview: record.openReview ?? null, builder: record.builder ?? state.builders };
 }
@@ -174,11 +177,17 @@ export function nativeCommand(flags: Flags & { run: string }) {
     else if (flags.action === 'check' || flags.action === 'final-check') result = check(inputs, state, folder, id);
     else if (flags.action === 'review' || flags.action === 'final-review') result = review(inputs, state, folder, id, actor, flags.input ?? '');
     else if (flags.action === 'repair') {
-      assertWindow(state);
+      const finalRepair = state.final?.status === 'needs-repair';
+      assertWindow(state, finalRepair);
       assertQuiet(state, id);
       const record = state.blocks[id];
-      if (!record || !(['needs-repair', 'interrupted'].includes(record.status ?? '') || record.status === 'review_ready' && state.final?.status === 'needs-repair')) throw new Error('No failed check or required review repair is recorded');
-      state.blocks[id] = { ...beginRepair(record, inputs.plan, state.implementationDeadline), status: 'repairing', builder: actor };
+      if (!record || !(['needs-repair', 'interrupted'].includes(record.status ?? '') || record.status === 'review_ready' && finalRepair)) throw new Error('No failed check or required review repair is recorded');
+      const repair = beginRepair(record, inputs.plan, finalRepair ? state.deadline : state.implementationDeadline);
+      if (record.status === 'review_ready' && finalRepair) {
+        repair.baseline = sourceManifest(inputs.project.repo);
+        repair.base = head(inputs.project.repo);
+      }
+      state.blocks[id] = { ...repair, status: 'repairing', builder: actor };
       state.builders = [...new Set([...state.builders, actor])];
       if (state.final) state.final.status = 'needs-repair';
     } else if (flags.action === 'recover') {

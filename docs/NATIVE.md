@@ -72,7 +72,9 @@ node /path/to/harness/harness.ts native --action repair --run /path/to/run --blo
 
 Repair, check and review again. Preserve unresolved finding IDs; explicitly close resolved required findings with `{"id":"finding-id","reason":"Evidence for closure"}`. Two total repair passes and 45 minutes are defaults for the entire block, clipped to its remaining implementation window. New findings, replacement workers and resumes never reset the budget. If exhausted, preserve work and report incomplete. This shared checkout does not advance past unresolved partial changes.
 
-A final review can require reopening an already reviewed block through `repair`, consuming that block's remaining budget. Recheck and independently review it, then repeat final verification. Do not waive a material finding to meet a deadline.
+A final review can require reopening an already reviewed block through `repair`, consuming that block's remaining budget. This can use the reserved final-review window up to `stopAt`; new blocks cannot. Existing repair deadlines and counters never reset or extend. Later accepted blocks do not count as new edits by the reopened block. Recheck and independently review it, then repeat final verification. Do not waive a material finding to meet a deadline.
+
+Failed checks and rejected reviews return exit code 1 with the structured result. Invalid commands or inputs return 2. Success returns 0. Read the result as well as the exit code. Every check cycle keeps its own `results/<block>/attempt-N/` evidence; N counts checks, not repair passes. The separate repair counter controls the budget.
 
 ## Final source and review artifact
 

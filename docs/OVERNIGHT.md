@@ -25,7 +25,7 @@ Current Claude Code supports waiting for a subscription reset and continuing in 
 
 ## Codex
 
-Use one lead chat with the native goal and subagent tools available in that session. Ask the lead to create the goal explicitly. Confirm that the goal is active and a bounded worker can finish a real task before relying on unattended continuation. This flow does not use `harness.ts` or require a global skill install.
+Use one lead chat with the native goal and subagent tools available in that session. Ask the lead to create the goal explicitly. Confirm that the goal is active and a bounded worker can finish a real task before relying on unattended continuation. Use the native helper for state and gates, as in the Desktop route; no global skill install is required.
 
 Give the lead the absolute paths to the approved task, checkout, orchestration skill, and saved session record. For example:
 
@@ -58,7 +58,7 @@ These checks make the run suitable for unattended work; they do not guarantee un
 
 ## Keep the handoff current
 
-Use the template's Current handoff section as one dated snapshot. Replace stale field values when the lead checkpoints, and update the Work table with it. Put useful older events in Evidence and decisions. Keep owner notes in their separate file. An old "nothing verified" entry must not sit beside a later verified revision as if both describe the present.
+Use the template's Current handoff section as one dated snapshot. Replace stale field values when the lead checkpoints. Keep the outcome/ownership map separate from live status, which comes from the helper. Put useful older events in Evidence and decisions. Keep owner notes in their separate file. An old "nothing verified" entry must not sit beside a later verified revision as if both describe the present.
 
 Identify what each check tested, including tracked changes and new files when the tree is uncommitted. Record changes made after the check as still needing verification. On resume, compare the snapshot with files, logs, and worker status before dispatching work. If they disagree, record the uncertainty and reconcile it first.
 
@@ -68,6 +68,6 @@ The lead schedules checks that share build output, local service limits, or heav
 
 ## How this differs from the CLI controller
 
-`harness.ts` still uses bounded, sequential builder/reviewer calls in private checkouts. It disables subagents and hooks. It does not run this native goal flow or measure subscription percentage. Keep it for controlled pilots where its accounting and isolation are useful.
+The optional `run --execute` command uses bounded, sequential builder/reviewer calls in private checkouts. It disables subagents and hooks. It does not run this native goal flow or measure subscription percentage. Keep it for controlled pilots where its accounting and isolation are useful.
 
-The native session uses the same task, implementation, test, and review skills, with orchestrate directing the work. Host permissions and the lead enforce the work rules. The controller's sandbox, scope checks, and dollar/deadline accounting do not apply. No extra JavaScript controller, global hook, or installer is required for this flow.
+The native session uses the same task, implementation, test, and review skills, with orchestrate directing the work. Its helper enforces scope, evidence freshness, review transitions, repair limits and deadlines when invoked. Host permissions control agent access and the host supplies continuation. Native mode has no model sandbox, subscription meter or process watchdog for host workers. No extra controller, global hook or installer is required.

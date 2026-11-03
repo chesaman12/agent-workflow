@@ -1,6 +1,6 @@
 ---
 name: to-tickets
-description: Break a plan, spec, or the current conversation into a set of tracer-bullet tickets, each declaring its blocking edges, recorded in TASK.md and the local RUN.json execution list.
+description: Break a plan, spec, or the current conversation into reviewable blocks with dependencies, recorded in TASK.md and the selected run configuration.
 disable-model-invocation: true
 ---
 
@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Break a plan, spec, or conversation into a set of **tickets**: tracer-bullet vertical slices, each declaring the tickets that **block** it.
 
-Use TASK.md for requirements and RUN.json for execution metadata. No tracker is required.
+Use TASK.md for requirements. Desktop uses NATIVE.json for block paths, dependencies, design links and deadlines. The optional CLI controller uses RUN.json for its model, delivery and execution limits. No tracker is required.
 
 ## Process
 
@@ -39,7 +39,7 @@ Give each ticket its **blocking edges**: the other tickets that must complete be
 
 **Wide refactors are the exception to vertical slicing.** A **wide refactor** is one mechanical change (rename a column, retype a shared symbol) whose **blast radius** fans across the whole codebase, so a single edit breaks thousands of call sites at once and no vertical slice can land green. Don't force it into a tracer bullet; sequence it as **expand-contract**. First expand: add the new form beside the old so nothing breaks. Then migrate the call sites over in batches sized by blast radius (per package, per directory), each batch its own ticket blocked by the expand, keeping CI green batch to batch because the old form still exists. Finally contract: delete the old form once no caller remains, in a ticket blocked by every migrate batch. This runner requires each accepted block to pass the project gate. When smaller batches cannot stay green, keep that coupled change in one reviewable block or plan it as supervised work. Do not promise an unattended sequence whose intermediate blocks cannot pass.
 
-### 4. Quiz the user
+### 4. Review the proposed scope
 
 Present the proposed breakdown as a numbered list. For each ticket, show:
 
@@ -47,16 +47,10 @@ Present the proposed breakdown as a numbered list. For each ticket, show:
 - **Blocked by**: which other tickets (if any) must complete first
 - **What it delivers**: the end-to-end behaviour this ticket makes work
 
-Ask the user:
-
-- Does the granularity feel right? (too coarse / too fine)
-- Are the blocking edges correct: does each ticket only depend on tickets that genuinely gate it?
-- Should any tickets be merged or split further?
-
-Iterate until the user approves the breakdown.
+Resolve material choices about scope, dependencies and authority. Reuse existing approval when the breakdown preserves the approved outcome. Do not repeat a planning interview for routine implementation choices.
 
 ### 5. Save the approved breakdown
 
-Keep the requirements and acceptance examples in TASK.md, under each block's title. RUN.json contains only block ids, titles, allowed paths, dependencies, model, delivery, and execution limits. Do not repeat the requirements in both files. Each block must identify real existing code and types in TASK.md.
+Keep the requirements and acceptance examples in TASK.md, under each block's title. Use the configuration for the selected execution mode described above. Do not repeat the requirements in both files. Each block must identify real existing code and types in TASK.md.
 
 Use the local task template. Start with one small block. Set later batch sizes from the available review and repair budget. Do not publish issues, create remotes, or change a parent issue unless explicitly asked.

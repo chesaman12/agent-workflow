@@ -22,17 +22,17 @@ This is a human handoff for a native coding session. With the local helper, stat
 - Billing mode and observed account limits, if available:
 - Run status: preparing | running | waiting-for-reset | blocked | review-ready | stopped
 
-## Work
+## Work map
 
-| Block | Outcome and acceptance reference | Depends on | Owner and allowed files | State | Evidence |
-|---|---|---|---|---|---|
-| {{id}} | {{outcome}} | {{ids}} | {{owner; files}} | planned | |
+| Block | Outcome and acceptance reference | Depends on | Owner and allowed files | Evidence links |
+|---|---|---|---|---|
+| {{id}} | {{outcome}} | {{ids}} | {{owner; files}} | |
 
-States: planned, active, needs-verification, verified, blocked. Verified means the automated checks and review passed; it does not mean owner acceptance.
+Read live status from the helper's state.json or `native --action status`. Do not copy statuses into a second table. A block's `review_ready` status means its checks and review passed; the run still needs final integrated checks and review. Human acceptance is separate.
 
 ## Current handoff
 
-Keep one current snapshot here. Replace the lead's old field values at each handoff; move useful history to Evidence and decisions. Update the Work table at the same time. Never replace human notes. If the record conflicts with files or logs on resume, reconcile it before assigning work or claiming success.
+Keep one dated handoff snapshot here. Replace the lead's old field values at each handoff; move useful history to Evidence and decisions. Link the helper's current state rather than maintaining competing counters. Never replace human notes. If the record conflicts with files or logs on resume, reconcile it before assigning work or claiming success.
 
 - Updated at, with timezone:
 - Current checkout, revision, and uncommitted work:

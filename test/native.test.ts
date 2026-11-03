@@ -249,3 +249,73 @@ test('feedback keeps immutable before/after examples and never promotes a rule a
   assert.equal(exported.cases, 2);
   assert.ok(exported.labels.includes('/private/'));
 });
+
+
+test('native CLI returns failure for failed checks and rejected reviews', t => {
+  const f = nativeFixture(t);
+  f.command('claim', { actor: 'builder' });
+  const cli = (action: string, extra: string[] = []) => spawnSync(process.execPath, [
+    path.join(f.folder, 'runtime/harness.ts'), 'native', '--run', f.folder,
+    '--action', action, '--block', 'double', '--actor', 'reviewer', ...extra,
+  ], { encoding: 'utf8' });
+  const failed = cli('check');
+  assert.equal(failed.status, 1, failed.stderr || failed.stdout);
+  assert.equal(JSON.parse(failed.stdout).checks.passed, false);
+  f.command('repair', { actor: 'builder' });
+  writeFileSync(path.join(f.repo, 'src/calc.mjs'), 'export const double = value => value * 2;\n');
+  const checked = cli('check');
+  assert.equal(checked.status, 0, checked.stderr);
+  const input = path.join(f.root, 'missing-evidence.json');
+  writeFileSync(input, JSON.stringify({ tree: JSON.parse(checked.stdout).checks.tree, review: { ...passedReview(), notVerified: ['Required interaction has not been exercised.'] } }));
+  const rejected = cli('review', ['--input', input]);
+  assert.equal(rejected.status, 1, rejected.stderr || rejected.stdout);
+  assert.equal(JSON.parse(rejected.stdout).status, 'needs-repair');
+});
+
+test('frozen skills retain their planning and overnight references', t => {
+  const f = nativeFixture(t);
+  for (const file of ['docs/NATIVE.md', 'docs/OVERNIGHT.md', 'templates/TASK.md', 'templates/NATIVE.json', 'templates/SESSION.md']) {
+    assert.ok(existsSync(path.join(f.folder, 'runtime', file)), file);
+  }
+});
+
+test('final findings can be repaired within the final window without counting later blocks as scope changes', t => {
+  const f = nativeFixture(t, {}, { blocks: [
+    { id: 'double', title: 'Double', paths: ['src/calc.mjs'], dependsOn: [], design: { summary: 'Keep the calculation here.' } },
+    { id: 'second', title: 'Independent constant', paths: ['src/extra.mjs'], dependsOn: ['double'], design: { summary: 'Keep unrelated data separate.' } },
+  ] });
+  f.build();
+  f.command('claim', { block: 'second', actor: 'second-builder' });
+  writeFileSync(path.join(f.repo, 'src/extra.mjs'), 'export const label = "ready";\n');
+  const checked = f.command('check', { block: 'second' });
+  assert.ok('checks' in checked && checked.checks && !Array.isArray(checked.checks));
+  const secondReview = path.join(f.root, 'second-review.json');
+  writeFileSync(secondReview, JSON.stringify({ tree: checked.checks.tree, review: passedReview() }));
+  f.command('review', { block: 'second', actor: 'reviewer', input: secondReview });
+  const state = readNative(f.folder).state;
+  state.implementationDeadline = Date.now() - 1;
+  saveState(f.folder, state);
+  const final = f.check('final-check');
+  const finding = { id: 'clear-input', file: 'src/calc.mjs', line: 1, category: 'readability' as const, blocking: true, message: 'The input name hides its meaning.', suggestion: 'Name the input value.' };
+  f.submit(final, { final: true, review: { ...passedReview(), standards: { passed: false, findings: [finding] } } });
+  f.command('repair', { actor: 'builder' });
+  writeFileSync(path.join(f.repo, 'src/calc.mjs'), 'export const double = value => value * 2;\n');
+  f.submit(f.check());
+  assert.equal(readNative(f.folder).state.blocks.double.repairAttempts, 1);
+  assert.equal(readNative(f.folder).state.deadline, state.deadline);
+  const finalAgain = f.check('final-check');
+  assert.match(readFileSync(path.join(f.folder, 'results/final/attempt-0/review.json'), 'utf8'), /clear-input/);
+  assert.equal(f.submit(finalAgain, { final: true }).status, 'needs-repair');
+  const finalClosed = f.check('final-check');
+  f.submit(finalClosed, { final: true, review: { ...passedReview(), closed: [{ id: 'clear-input', reason: 'The current function uses value; the calculation and both callers were checked.' }] } });
+  assert.equal(f.status().reviewReady, true);
+});
+
+test('rechecking evidence preserves the earlier review and source snapshot', t => {
+  const f = nativeFixture(t);
+  f.build();
+  f.submit(f.check('final-check'), { final: true, review: { ...passedReview(), notVerified: ['A required manual check remains.'] } });
+  const original = readFileSync(path.join(f.folder, 'results/final/attempt-0/review.json'), 'utf8');
+  f.submit(f.check('final-check'), { final: true });
+  assert.equal(readFileSync(path.join(f.folder, 'results/final/attempt-0/review.json'), 'utf8'), original);
+});

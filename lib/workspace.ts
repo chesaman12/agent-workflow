@@ -51,9 +51,7 @@ export function copyDependencies(source: string, dest: string, paths: string[]) 
 export function freezeRuntime(folder: string) {
   const runtime = path.join(folder, 'runtime');
   mkdirSync(runtime, { recursive: true });
-  for (const name of ['harness.ts', 'package.json', 'lib', 'evals', 'skills']) cpSync(path.join(ROOT, name), path.join(runtime, name), { recursive: true });
-  mkdirSync(path.join(runtime, 'docs'));
-  cpSync(path.join(ROOT, 'docs', 'NATIVE.md'), path.join(runtime, 'docs', 'NATIVE.md'));
+  for (const name of ['harness.ts', 'package.json', 'lib', 'evals', 'skills', 'docs', 'templates', 'README.md', 'KICKOFF.md']) cpSync(path.join(ROOT, name), path.join(runtime, name), { recursive: true });
   return path.join(runtime, 'harness.ts');
 }
 

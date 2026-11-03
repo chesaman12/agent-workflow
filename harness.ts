@@ -71,5 +71,9 @@ try {
     }
     console.log(JSON.stringify(result,null,2));
     if ('machinePassed' in result && result.machinePassed === false || 'results' in result && result.results?.some(r => r.status === 'failed')) process.exitCode=1;
+    if (command === 'native' && (
+      'checks' in result && result.checks && !Array.isArray(result.checks) && !result.checks.passed ||
+      'status' in result && result.status === 'needs-repair'
+    )) process.exitCode=1;
   }
 } catch (error) { console.error(error instanceof Error ? error.message : String(error)); process.exitCode=2; }

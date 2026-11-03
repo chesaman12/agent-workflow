@@ -31,7 +31,7 @@ export function fileBundle(folder: string): FileBundle {
 }
 
 export function runtimeId() {
-  return digest({ cli: readFileSync(path.join(ROOT, 'harness.ts'), 'utf8'), lib: fileBundle(path.join(ROOT, 'lib')), package: readFileSync(path.join(ROOT, 'package.json'), 'utf8') });
+  return digest({ cli: readFileSync(path.join(ROOT, 'harness.ts'), 'utf8'), lib: fileBundle(path.join(ROOT, 'lib')), docs: fileBundle(path.join(ROOT, 'docs')), templates: fileBundle(path.join(ROOT, 'templates')), package: readFileSync(path.join(ROOT, 'package.json'), 'utf8') });
 }
 
 function commands(value: Command[], label: string, required = false) {
